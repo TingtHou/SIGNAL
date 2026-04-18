@@ -1,0 +1,34 @@
+Package: SIGNAL
+Type: Package
+Title: Spatial Variable Gene Analysis and Classification
+Version: 0.0.0.9000
+Authors@R: person("Tingting", "Hou",
+    email = "tingthou@lsu.edu",
+    role = c("aut", "cre"),
+    comment = c(ORCID = "0000-0000-0000-0000"))
+Description: A unified statistical framework for detecting and classifying
+    spatially variable genes (SVGs) in spatial transcriptomics data. SIGNAL
+    uses kernel-based variance component decomposition with MINQUE estimation
+    to identify unitype SVGs (utSVGs), cell-type-specific SVGs (ctSVGs), and
+    spatial-distribution SVGs (sdSVGs) through a two-stage hypothesis testing
+    procedure with Benjamini-Yekutieli FDR control.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 4.1.0)
+Imports:
+    KernelNN,
+    Matrix,
+    stats,
+    methods
+Suggests:
+    testthat (>= 3.0.0),
+    ggplot2
+Remotes:
+    TingtHou/KernelNN
+RoxygenNote: 7.3.2
+VignetteBuilder: knitr
+URL: https://github.com/TingtHou/SIGNAL
+BugReports: https://github.com/TingtHou/SIGNAL/issues
+Config/testthat/edition: 3
