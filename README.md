@@ -36,22 +36,3 @@ head(obj@result)          # per-gene p-values and classification
 obj@celltype_result       # ctSVG genes x cell types p-values
 SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 ```
-
-`SIGNAL()` runs the first four steps in one call.
-
-The defaults reproduce the original SIGNAL analysis code exactly:
-
-* `transform = "rank"`: each gene is converted to normal scores, `qnorm((rank(y) - 0.5) / n)`, with tied counts sharing their average rank. Results are deterministic. `transform = "impute"` breaks tied zeros at random instead (set `seed`).
-* `method = "davies_liu"`: the overall test uses Davies' method and the cell-type, spatial and ctSVG tests use Liu's moment-matching approximation. `method = "davies"` uses Davies for all four tests, and `method = "moment"` uses Liu for all four (fastest).
-
-The overall test needs an eigendecomposition per gene, so for large data sets split the genes into batches, for example one HPC job per batch.
-
-| Column in `obj@result` | Description |
-|---|---|
-| `p_overall` | test of any effect (cell type, spatial or ctSVG) |
-| `p_celltype`, `p_spatial`, `p_ctSVG` | test of each effect on its own |
-| `padj_overall` | `p_overall` adjusted for multiple testing (BH by default) |
-| `celltype_effect`, `spatial_effect`, `ctSVG_effect` | gene is significant overall and that effect has p < `alpha` |
-| `category` | e.g. `"Spatial"`, `"CellType+ctSVG"`, `"Unclassified"`, `"Not significant"` |
-
-The default spatial kernel panel was adapted from CELINA (Shang, Wu & Zhou, *Nat. Commun.* 2025). SIGNAL computes the kernels itself and does not need CELINA.
