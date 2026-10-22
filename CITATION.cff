@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Hou
+    given-names: Tingting
+title: "SIGNAL: Spatial varIable Gene detectioN And cLassification"
+version: 0.1.0
+repository-code: "https://github.com/TingtHou/SIGNAL"
+license: GPL-3.0-or-later
+date-released: 2026-10-20

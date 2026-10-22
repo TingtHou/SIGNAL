@@ -1,0 +1,205 @@
+---
+title: "SIGNAL tutorial"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{SIGNAL tutorial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", message = FALSE,
+                      fig.width = 6, fig.height = 4)
+```
+
+SIGNAL (**S**patial var**I**able **G**ene detectio**N** **A**nd c**L**assification)
+detects spatially variable genes in single-cell resolution spatial
+transcriptomics and classifies each one by the source of its variation:
+
+| Effect     | Meaning |
+|------------|---------|
+| `CellType` | expression differs between cell types |
+| `Spatial`  | expression varies over space in the same way for all cell types |
+| `ctSVG`    | the spatial pattern is specific to some cell types |
+
+This tutorial walks through a complete analysis of the example data shipped
+with the package.
+
+## Installation
+
+```{r, eval = FALSE}
+if (!require("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+devtools::install_github("TingtHou/SIGNAL")
+```
+
+```{r}
+library(SIGNAL)
+```
+
+## Example data
+
+SIGNAL needs three inputs for the same set of cells:
+
+* `counts`: a genes x cells matrix of raw counts (a base or sparse matrix);
+* `location`: a cells x 2 matrix of spatial coordinates;
+* `celltype`: a cell-type label for each cell.
+
+`SIGNAL_example` is a simulated data set of 400 cells from four cell types and
+70 genes. Genes 1-40 are null, genes 41-50 are higher in cell type CT1, genes
+51-60 are higher in a central hotspot for every cell type, and genes 61-70 are
+higher in the hotspot for CT1 only (ctSVGs).
+
+```{r}
+data(SIGNAL_example)
+counts <- SIGNAL_example$counts
+location <- SIGNAL_example$location
+celltype <- SIGNAL_example$celltype
+
+dim(counts)
+head(location, 3)
+table(celltype)
+```
+
+## Step 1: create a SIGNAL object
+
+```{r}
+obj <- createSIGNALobject(counts = counts, location = location,
+                          celltype = celltype, project = "Example")
+obj
+```
+
+## Step 2: filter and transform expression
+
+Genes expressed in fewer than `min_cells` cells are removed. Each remaining
+gene is converted to normal scores, `qnorm((rank(y) - 0.5) / n)`; tied counts,
+in particular the zeros, share their average rank, so the result is
+deterministic. `filter = "celina"` applies CELINA's gene and cell filter
+instead, and `transform = "impute"` breaks tied zeros at random.
+
+```{r}
+obj <- SIGNAL_preprocess(obj, min_cells = 10)
+```
+
+## Step 3: build kernels
+
+`SIGNAL_kernel()` builds the cell-type kernel and, from the coordinates, a
+panel of 11 spatial kernels. These are 5 Gaussian and 5 Matérn kernels at
+different scales, plus a thin-plate spline kernel. See
+`?build_spatial_kernels` for the definitions.
+
+```{r}
+obj <- SIGNAL_kernel(obj)
+names(obj@spatial_kernels)
+```
+
+To use other spatial kernels, pass a list of n x n matrices:
+`SIGNAL_kernel(obj, kernels = my_kernels)`.
+
+## Step 4: test and classify genes
+
+For each gene and each spatial kernel, SIGNAL fits
+
+$$y \sim N\left(0,\ \tau_1 K_{celltype} + \tau_2 K_{spatial} + \tau_3 K_{interaction} + \sigma^2 I\right)$$
+
+and computes four p-values:
+
+* an **overall** test of $\tau_1 = \tau_2 = \tau_3 = 0$;
+* a **cell-type** test ($\tau_1$), a **spatial** test ($\tau_2$) and a
+  **ctSVG** test ($\tau_3$).
+
+P-values are combined across the 11 kernels with the Cauchy combination test.
+By default (`method = "davies_liu"`), as in the original SIGNAL analysis code,
+the overall test's tail probability uses Davies' method and the cell-type,
+spatial and ctSVG tests use Liu's moment-matching approximation.
+
+```{r}
+obj <- SIGNAL_test(obj, alpha = 0.05, adjust = "BH")
+obj
+head(obj@result)
+```
+
+Classification works in two steps. A gene is significant if its BH-adjusted
+overall p-value is below `alpha`. Each significant gene is then labelled with
+every effect whose own p-value is below `alpha`.
+
+```{r}
+summary(obj)
+```
+
+Compare with the true gene types:
+
+```{r}
+table(truth = SIGNAL_example$gene_type[obj@result$gene],
+      SIGNAL = obj@result$category)
+```
+
+All null genes are not significant. Every cell-type gene is labelled
+`CellType` and every spatial gene `Spatial`. The ctSVGs are flagged `ctSVG`,
+and most are also labelled `CellType`. That is expected: expression that is
+higher in the hotspot for CT1 only also makes CT1's average expression higher
+than the other cell types'.
+
+To change the decision rule without refitting, call `SIGNAL_classify()`:
+
+```{r}
+obj_strict <- SIGNAL_classify(obj, alpha = 0.01, adjust = "bonferroni")
+summary(obj_strict)
+```
+
+## Visualise genes
+
+```{r, fig.height = 3}
+SIGNAL_plotGene(obj, "gene51")
+```
+
+```{r, fig.width = 7, fig.height = 5}
+SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
+```
+
+`gene51` is high in the hotspot for every cell type. `gene61` is high in the
+hotspot only for CT1.
+
+## Step 5: find the cell types behind each ctSVG
+
+`SIGNAL_celltype()` tests each ctSVG once per cell type, using an interaction
+kernel built from that cell type alone. By default it tests the genes with a
+significant ctSVG effect from `SIGNAL_test()`.
+
+```{r}
+obj <- SIGNAL_celltype(obj)
+signif(obj@celltype_result, 2)
+```
+
+The small p-values are in the CT1 column, the cell type that carries the
+simulated pattern.
+
+## One-step analysis
+
+`SIGNAL()` runs steps 1-4 in one call:
+
+```{r, eval = FALSE}
+obj <- SIGNAL(counts, location, celltype)
+```
+
+## Large data sets
+
+* With the default `method = "davies_liu"`, the overall test needs an n x n
+  eigendecomposition per gene and kernel, so run time grows with both the
+  number of cells n and the number of genes. For large data, split the genes
+  into batches (for example one HPC job per batch) and run each batch with
+  `SIGNAL()` on that subset of rows of `counts`.
+* `method = "moment"` uses Liu's approximation for all four tests, computed
+  once per kernel. Its cost hardly depends on the number of genes, which makes
+  it useful for a quick first pass.
+* Memory holds the 11 spatial kernels plus working n x n matrices, a few GB at
+  n = 5,000.
+* On Linux or macOS, `SIGNAL_test(obj, ncores = k)` processes `k` spatial
+  kernels in parallel. Each worker needs its own working memory.
+* R linked to an optimised BLAS (OpenBLAS, Intel MKL, Apple Accelerate) speeds
+  up the matrix products considerably.
+
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 320" width="980" height="320" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="980" height="320" fill="#ffffff"/>
+
+  <g font-size="15" font-weight="bold" fill="#222" text-anchor="middle">
+    <text x="100" y="30">Input</text>
+    <text x="300" y="30">Kernels</text>
+    <text x="540" y="30">Variance component model</text>
+    <text x="840" y="30">Classification</text>
+  </g>
+
+  <!-- Input -->
+  <g font-size="13" fill="#222" text-anchor="middle">
+    <rect x="20" y="55" width="160" height="50" rx="8" fill="#EAF2FB" stroke="#4C7EBF"/>
+    <text x="100" y="77" font-weight="bold">Counts</text>
+    <text x="100" y="95">genes × cells</text>
+    <rect x="20" y="125" width="160" height="50" rx="8" fill="#EAF2FB" stroke="#4C7EBF"/>
+    <text x="100" y="147" font-weight="bold">Cell locations</text>
+    <text x="100" y="165">cells × 2</text>
+    <rect x="20" y="195" width="160" height="50" rx="8" fill="#EAF2FB" stroke="#4C7EBF"/>
+    <text x="100" y="217" font-weight="bold">Cell types</text>
+    <text x="100" y="235">one label per cell</text>
+  </g>
+
+  <!-- Kernels -->
+  <g font-size="13" fill="#222" text-anchor="middle">
+    <rect x="220" y="55" width="160" height="50" rx="8" fill="#FDF0E6" stroke="#D9822B"/>
+    <text x="300" y="77" font-weight="bold">K_ct</text>
+    <text x="300" y="95">cell-type kernel</text>
+    <rect x="220" y="125" width="160" height="50" rx="8" fill="#FDF0E6" stroke="#D9822B"/>
+    <text x="300" y="147" font-weight="bold">K_sp (11 kernels)</text>
+    <text x="300" y="165">Gaussian, Matérn, spline</text>
+    <rect x="220" y="195" width="160" height="50" rx="8" fill="#FDF0E6" stroke="#D9822B"/>
+    <text x="300" y="217" font-weight="bold">K_int</text>
+    <text x="300" y="235">K_ct ∘ K_sp</text>
+  </g>
+
+  <!-- Model -->
+  <g font-size="13" fill="#222" text-anchor="middle">
+    <rect x="420" y="55" width="240" height="190" rx="8" fill="#EEF7EE" stroke="#4E9A55"/>
+    <text x="540" y="82" font-weight="bold">For each gene and K_sp</text>
+    <text x="540" y="108">y ~ N(0, τ₁K_ct + τ₂K_sp</text>
+    <text x="540" y="126">+ τ₃K_int + σ²I)</text>
+    <line x1="440" y1="142" x2="640" y2="142" stroke="#4E9A55" stroke-dasharray="3,3"/>
+    <text x="540" y="164">MINQUE estimates</text>
+    <text x="540" y="184">overall test + τ₁, τ₂, τ₃ tests</text>
+    <text x="540" y="204">(Liu approximation)</text>
+    <text x="540" y="230" font-style="italic">Cauchy combination over K_sp</text>
+  </g>
+
+  <!-- Classification -->
+  <g font-size="13" fill="#222" text-anchor="middle">
+    <rect x="710" y="55" width="260" height="44" rx="8" fill="#F3EEF9" stroke="#7B5BA6"/>
+    <text x="840" y="82" font-weight="bold">Overall significant (BH)?</text>
+    <rect x="710" y="115" width="80" height="44" rx="8" fill="#ffffff" stroke="#7B5BA6"/>
+    <text x="750" y="142">CellType</text>
+    <rect x="800" y="115" width="80" height="44" rx="8" fill="#ffffff" stroke="#7B5BA6"/>
+    <text x="840" y="142">Spatial</text>
+    <rect x="890" y="115" width="80" height="44" rx="8" fill="#ffffff" stroke="#7B5BA6"/>
+    <text x="930" y="142">ctSVG</text>
+    <rect x="710" y="195" width="260" height="50" rx="8" fill="#F3EEF9" stroke="#7B5BA6"/>
+    <text x="840" y="217" font-weight="bold">Stage 2: which cell types?</text>
+    <text x="840" y="235">per-cell-type ctSVG test</text>
+  </g>
+
+  <!-- Arrows -->
+  <g stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <path d="M180,150 L218,150"/>
+    <path d="M180,220 L218,220"/>
+    <path d="M380,150 L418,150"/>
+    <path d="M660,78 L708,78"/>
+    <path d="M840,99 L840,113"/>
+    <path d="M930,159 L930,193"/>
+  </g>
+
+  <!-- Functions -->
+  <g font-size="12" fill="#666" text-anchor="middle" font-family="Consolas, Menlo, monospace">
+    <text x="100" y="275">createSIGNALobject()</text>
+    <text x="100" y="292">SIGNAL_preprocess()</text>
+    <text x="300" y="275">SIGNAL_kernel()</text>
+    <text x="540" y="275">SIGNAL_test()</text>
+    <text x="840" y="275">SIGNAL_classify()</text>
+    <text x="840" y="292">SIGNAL_celltype()</text>
+  </g>
+</svg>

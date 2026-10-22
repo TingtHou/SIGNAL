@@ -1,0 +1,41 @@
+Package: SIGNAL
+Type: Package
+Title: Spatial varIable Gene detectioN And cLassification
+Version: 0.1.0
+Authors@R:
+    person(given = "Tingting", family = "Hou", email = "tingthou@lsu.edu", role = c("aut", "cre"))
+Maintainer: Tingting Hou <tingthou@lsu.edu>
+Description: Detects spatially variable genes in single-cell resolution
+    spatial transcriptomics and classifies them by the source of their
+    spatial variation. Each gene is modelled with a multi-kernel variance
+    component model containing a cell-type kernel, a spatial kernel and their
+    interaction. Variance components are estimated by MINQUE, and an overall
+    test plus separate tests for the cell-type effect, the spatial effect and
+    the cell-type-specific spatial (ctSVG) effect are computed with Liu's
+    moment-matching approximation or Davies' exact method. P-values are
+    combined across a panel of spatial kernels with the Cauchy combination
+    test.
+License: GPL (>= 3)
+URL: https://github.com/TingtHou/SIGNAL
+BugReports: https://github.com/TingtHou/SIGNAL/issues
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 4.0.0)
+Imports:
+    CompQuadForm,
+    ggplot2,
+    methods,
+    mgcv,
+    parallel,
+    stats,
+    utils
+Suggests:
+    knitr,
+    Matrix,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Roxygen: list(markdown = TRUE)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.1

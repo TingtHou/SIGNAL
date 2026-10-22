@@ -1,0 +1,8 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+^README\.md$
+^CITATION\.cff$
+^data-raw$
+^docs$
+^man/figures$
