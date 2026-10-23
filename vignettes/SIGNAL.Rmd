@@ -73,13 +73,15 @@ obj
 ## Step 2: filter and transform expression
 
 Genes expressed in fewer than `min_cells` cells are removed. Each remaining
-gene is converted to normal scores, `qnorm((rank(y) - 0.5) / n)`; tied counts,
-in particular the zeros, share their average rank, so the result is
-deterministic. `filter = "celina"` applies CELINA's gene and cell filter
-instead, and `transform = "impute"` breaks tied zeros at random.
+gene is converted to normal scores, `qnorm((rank(y) - 0.5) / n)`, with tied
+zeros broken at random and the scores averaged over `n_imp` draws; `seed`
+makes this reproducible. `transform = "rank"` gives tied counts their average
+rank instead (deterministic, as in the original real-data analyses, but the
+spatial test can be anti-conservative). `filter = "celina"` applies CELINA's
+gene and cell filter instead of `min_cells`.
 
 ```{r}
-obj <- SIGNAL_preprocess(obj, min_cells = 10)
+obj <- SIGNAL_preprocess(obj, min_cells = 10, seed = 1)
 ```
 
 ## Step 3: build kernels

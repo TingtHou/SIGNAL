@@ -13,7 +13,7 @@ SIGNAL(
   min_cells = 10,
   percentage_cell = 0.1,
   min_total_counts = 10,
-  transform = c("rank", "impute"),
+  transform = c("impute", "rank"),
   n_imp = 10,
   alpha = 0.05,
   adjust = "BH",
@@ -53,7 +53,7 @@ locations and cell types.
 
 \item{percentage_cell, min_total_counts}{Used by \code{filter = "celina"}.}
 
-\item{transform}{\code{"rank"} (default) or \code{"impute"}, see Details.}
+\item{transform}{\code{"impute"} (default) or \code{"rank"}, see Details.}
 
 \item{n_imp}{Number of zero imputations averaged when \code{transform = "impute"}.}
 

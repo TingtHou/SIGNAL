@@ -10,7 +10,7 @@ SIGNAL_preprocess(
   min_cells = 10,
   percentage_cell = 0.1,
   min_total_counts = 10,
-  transform = c("rank", "impute"),
+  transform = c("impute", "rank"),
   n_imp = 10,
   seed = NULL,
   verbose = TRUE
@@ -34,7 +34,7 @@ locations and cell types.
 
 \item{percentage_cell, min_total_counts}{Used by \code{filter = "celina"}.}
 
-\item{transform}{\code{"rank"} (default) or \code{"impute"}, see Details.}
+\item{transform}{\code{"impute"} (default) or \code{"rank"}, see Details.}
 
 \item{n_imp}{Number of zero imputations averaged when \code{transform = "impute"}.}
 
@@ -52,11 +52,14 @@ Removes lowly expressed genes (and, with \code{filter = "celina"}, cells with
 low total counts), then converts each remaining gene to normal scores.
 }
 \details{
-With \code{transform = "rank"} (default, as in the original SIGNAL code used for
-the real-data analyses) each gene's counts are converted to
-\code{qnorm((rank(y) - 0.5) / n)}; tied counts, in particular the zeros, share
-their average rank, so the result is deterministic. With
-\code{transform = "impute"} tied zeros are broken at random and the scores are
-averaged over \code{n_imp} draws (\code{\link[=rank_int_impute]{rank_int_impute()}}); set \code{seed} to make this
-reproducible. Genes whose transformed values are constant are removed.
+With \code{transform = "impute"} (default, as in the code used for the
+simulation studies) each gene's counts are converted to normal scores
+\code{qnorm((rank(y) - 0.5) / n)} with tied zeros broken at random, and the
+scores are averaged over \code{n_imp} draws (\code{\link[=rank_int_impute]{rank_int_impute()}}); set \code{seed} to
+make this reproducible. This keeps the spatial test calibrated when many
+counts are zero. With \code{transform = "rank"} (as in the original SIGNAL code
+used for the real-data analyses) tied counts, in particular the zeros, share
+their average rank, so the result is deterministic, but the spatial test can
+be anti-conservative. Genes whose transformed values are constant are
+removed.
 }

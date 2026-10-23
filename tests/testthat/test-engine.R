@@ -71,7 +71,7 @@ test_that("SIGNAL() with davies_liu reproduces the original real-data pipeline e
     KList = ref_kernels(K_ct, Ks), pfun = CompQuadForm::liu,
     pfun_overall = function(q, lambda) CompQuadForm::davies(q, lambda)$Qq)))
   ref <- sapply(1:4, function(t) CombinePValues(sapply(per_kernel, function(p) p[, t])))
-  obj <- SIGNAL(sim$counts, sim$location, sim$celltype, kernels = K, min_cells = 0, method = "davies_liu",
+  obj <- SIGNAL(sim$counts, sim$location, sim$celltype, kernels = K, min_cells = 0, transform = "rank", method = "davies_liu",
                 verbose = FALSE)
   ours <- as.matrix(obj@result[, c("p_overall", "p_celltype", "p_spatial", "p_ctSVG")])
   expect_equal(ours, ref, ignore_attr = TRUE, tolerance = 1e-6)

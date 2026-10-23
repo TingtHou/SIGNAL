@@ -26,7 +26,7 @@ data(SIGNAL_example)
 obj <- createSIGNALobject(counts   = SIGNAL_example$counts,    # genes x cells
                           location = SIGNAL_example$location,  # cells x 2
                           celltype = SIGNAL_example$celltype)  # one label per cell
-obj <- SIGNAL_preprocess(obj)            # filter genes, rank-based normal transform
+obj <- SIGNAL_preprocess(obj, seed = 1)  # filter genes, rank-based normal transform
 obj <- SIGNAL_kernel(obj)                 # cell-type kernel + 11 spatial kernels
 obj <- SIGNAL_test(obj)                   # overall, cell-type, spatial and ctSVG tests
 obj <- SIGNAL_celltype(obj)               # which cell types carry each ctSVG
