@@ -189,6 +189,13 @@ obj <- SIGNAL(counts, location, celltype)
 
 ## Large data sets
 
+* With more than 6,000 cells, `SIGNAL_kernel()` builds one Gaussian spatial
+  kernel instead of 11, as in CELINA's approximation mode, which cuts run
+  time and memory about 11-fold. Its bandwidth is CELINA's default
+  (Silverman's rule on log-normalized expression); set it with `bandwidth`.
+  Use `approximation = FALSE` to keep the 11 kernels, `approximation = TRUE`
+  to use one kernel for any data size, or change the threshold with
+  `max_cells`.
 * With the default `method = "davies"`, every test needs an n x n
   eigendecomposition per gene and kernel, so run time grows with both the
   number of cells n and the number of genes. For large data, split the genes

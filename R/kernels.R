@@ -22,26 +22,45 @@ celltype_matrix <- function(celltype) {
 
 #' Cell-type kernel
 #'
-#' Hamming kernel between the cell-type profiles of every pair of cells:
-#' \eqn{K_{ij} = \exp(-\gamma d_H(x_i, x_j))}, where \eqn{d_H} counts the
-#' cell-type columns on which cells \eqn{i} and \eqn{j} differ. For one-hot
-#' labels this is 1 for cells of the same type and \eqn{e^{-2\gamma}} otherwise.
+#' Kernel between the cell-type profiles \eqn{x_i} (single-cell labels or
+#' spot-level cell-type proportions) of every pair of cells,
+#' \eqn{K_{ij} = \exp(-\gamma d(x_i, x_j))}, with
+#' \describe{
+#'   \item{`"hamming"`}{\eqn{d} the number of cell-type columns on which the
+#'     two cells differ (Hamming kernel), for single-cell data where the
+#'     cell-type matrix is 0/1;}
+#'   \item{`"euclidean"`}{\eqn{d} the squared Euclidean distance (Gaussian
+#'     kernel), for cell-type proportions, e.g. from deconvolution of spots.}
+#' }
+#' With `distance = "auto"` (default) the Hamming kernel is used when every
+#' entry of the cell-type matrix is 0 or 1, and the Euclidean kernel
+#' otherwise.
 #'
 #' @param celltype Cell-type labels or a cells x cell-types matrix, see
 #'   [celltype_matrix()].
 #' @param gamma Kernel scale.
+#' @param distance `"auto"` (default), `"hamming"` or `"euclidean"`.
 #' @return An n x n kernel matrix.
 #' @examples
 #' build_celltype_kernel(c("A", "B", "A"))
+#' prop <- rbind(c(0.7, 0.3, 0), c(0.6, 0.2, 0.2), c(0, 0.1, 0.9))
+#' build_celltype_kernel(prop)
 #' @export
-build_celltype_kernel <- function(celltype, gamma = 1) {
+build_celltype_kernel <- function(celltype, gamma = 1, distance = c("auto", "hamming", "euclidean")) {
+  distance <- match.arg(distance)
   X <- celltype_matrix(celltype)
-  n <- nrow(X)
-  dH <- matrix(0, n, n)
-  for (k in seq_len(ncol(X))) {
-    dH <- dH + outer(X[, k], X[, k], "!=")
+  if (distance == "auto") distance <- if (all(X %in% c(0, 1))) "hamming" else "euclidean"
+  if (distance == "euclidean") {
+    d <- as.matrix(stats::dist(X))^2
+  } else {
+    n <- nrow(X)
+    d <- matrix(0, n, n)
+    for (k in seq_len(ncol(X))) {
+      d <- d + outer(X[, k], X[, k], "!=")
+    }
   }
-  exp(-gamma * dH)
+  dimnames(d) <- NULL
+  exp(-gamma * d)
 }
 
 #' Spatial kernels
@@ -93,6 +112,71 @@ build_spatial_kernels <- function(location, basis_number = 4, standardize = TRUE
     dimnames(K) <- NULL
     K
   })
+}
+
+#' Single Gaussian spatial kernel for large data
+#'
+#' Builds one Gaussian kernel \eqn{\exp(-d_{ij}^2 / h)} from the standardized
+#' coordinates, as in CELINA's `Calculate_Kernel(approximation = TRUE,
+#' sparseKernel = TRUE)`. Entries below `tol` are set to 0. SIGNAL uses this
+#' kernel instead of the panel of 11 kernels for large data sets (see
+#' [SIGNAL_kernel()]), which cuts run time and memory about 11-fold.
+#'
+#' @param location An n x 2 matrix or data frame of cell coordinates.
+#' @param bandwidth Bandwidth \eqn{h}. By default chosen from `counts` with
+#'   [select_bandwidth()].
+#' @param counts Genes x cells count matrix, used to choose the bandwidth when
+#'   `bandwidth` is `NULL`.
+#' @param genes Passed to [select_bandwidth()].
+#' @param tol Entries of the kernel below `tol` are set to 0.
+#' @param standardize If `TRUE` (default), each coordinate is centred and
+#'   scaled to unit variance first.
+#' @return An n x n kernel matrix with attribute `bandwidth`.
+#' @examples
+#' data(SIGNAL_example)
+#' K <- build_gaussian_kernel(SIGNAL_example$location, counts = SIGNAL_example$counts)
+#' attr(K, "bandwidth")
+#' @export
+build_gaussian_kernel <- function(location, bandwidth = NULL, counts = NULL, genes = NULL,
+                                  tol = 1e-4, standardize = TRUE) {
+  if (is.null(bandwidth)) {
+    if (is.null(counts)) stop("Give `bandwidth` or `counts` to choose it from.")
+    bandwidth <- select_bandwidth(counts, genes)
+  }
+  location <- as.matrix(location)[, 1:2, drop = FALSE]
+  storage.mode(location) <- "double"
+  if (standardize) location <- scale(location)
+  K <- exp(-as.matrix(stats::dist(location))^2 / bandwidth)
+  K[K < tol] <- 0
+  dimnames(K) <- NULL
+  attr(K, "bandwidth") <- bandwidth
+  K
+}
+
+#' Kernel bandwidth from expression
+#'
+#' CELINA's default bandwidth (`bandwidth_select(method = "Silverman")`): the
+#' median over genes of Silverman's rule of thumb ([stats::bw.nrd0()]) applied
+#' to log-normalized expression, \eqn{\log_2(y / s + 1)} with library size
+#' factors \eqn{s} scaled to mean 1 (as `scater::normalizeCounts()`). As in
+#' CELINA, the size factors use all genes and the median is taken over the
+#' tested genes.
+#'
+#' @param counts Genes x cells count matrix (base or sparse).
+#' @param genes Genes (row names or indices of `counts`) over which the median
+#'   is taken. Defaults to all genes.
+#' @return The bandwidth, a single number.
+#' @export
+select_bandwidth <- function(counts, genes = NULL) {
+  lib <- if (inherits(counts, "Matrix")) Matrix::colSums(counts) else colSums(as.matrix(counts))
+  sf <- lib / mean(lib)
+  if (!is.null(genes)) counts <- counts[genes, , drop = FALSE]
+  counts_t <- t(counts)
+  bw <- vapply(seq_len(ncol(counts_t)), function(g) {
+    y <- log2(as.numeric(counts_t[, g]) / sf + 1)
+    tryCatch(stats::bw.nrd0(y), error = function(e) NA_real_)
+  }, numeric(1))
+  stats::median(bw, na.rm = TRUE)
 }
 
 # Matern covariance with smoothness nu on the scaled distance alpha * d;

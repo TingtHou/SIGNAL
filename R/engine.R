@@ -12,7 +12,8 @@
 # The default "davies" method computes the eigenvalues of the matrix A of the
 # quadratic form for every gene and applies Davies' algorithm
 # (CompQuadForm::davies) to them, for every test, as in the code used for the
-# simulation studies. The "liu" method uses Liu's approximation, which only
+# simulation studies. The "saddlepoint" method applies the saddlepoint
+# approximation to the same eigenvalues. The "liu" method uses Liu's approximation, which only
 # needs the power sums tr(A^h), h = 1..4. These traces are polynomials in r (or
 # tau0) whose coefficients are traces of kernel products, so they are computed
 # once per kernel set and evaluated for all genes at once. The "davies_liu"
@@ -45,6 +46,32 @@
 .davies_eigen <- function(q, lambda) {
   p <- CompQuadForm::davies(q, lambda)$Qq
   min(max(p, 0), 1)
+}
+
+# Saddlepoint approximation to P(Q > q), Q = sum(lambda_j * chi2_1), by the
+# Lugannani-Rice formula (Kuonen, 1999). Accurate far into the tail, with no
+# floor like Davies'. Near the centre of the distribution (saddlepoint close to
+# 0) the formula is unstable, and Davies' value is used instead.
+.saddle_eigen <- function(q, lambda) {
+  lambda <- lambda[lambda != 0]
+  if (!any(lambda > 0)) return(as.numeric(q < 0))
+  if (!any(lambda < 0) && q <= 0) return(1)
+  s <- max(abs(lambda))
+  lambda <- lambda / s
+  q <- q / s
+  K <- function(z) -sum(log(1 - 2 * z * lambda)) / 2
+  K1 <- function(z) sum(lambda / (1 - 2 * z * lambda))
+  K2 <- function(z) 2 * sum(lambda^2 / (1 - 2 * z * lambda)^2)
+  upper <- 0.99999 / (2 * max(lambda))
+  lower <- if (any(lambda < 0)) 0.99999 / (2 * min(lambda)) else
+    if (q > sum(lambda)) -0.01 else -length(lambda) / (2 * q)
+  z <- tryCatch(stats::uniroot(function(z) K1(z) - q, c(lower, upper), tol = 1e-10)$root,
+                error = function(e) NA_real_)
+  if (is.na(z) || abs(z) < 1e-4) return(.davies_eigen(q, lambda))
+  w <- sign(z) * sqrt(2 * (z * q - K(z)))
+  v <- z * sqrt(K2(z))
+  p <- stats::pnorm(w + log(v / w) / w, lower.tail = FALSE)
+  if (!is.finite(p)) .davies_eigen(q, lambda) else p
 }
 
 # Eigenvalues of Q %*% V (Q, V symmetric). If V = R'R is positive definite they
@@ -148,11 +175,13 @@
 # (rows of Y) with one kernel list (last kernel = identity).
 # Returns a G x (1 + length(test_index)) matrix of p-values.
 .signal_engine <- function(Y, Klist, test_index = 1:3,
-                           method = c("davies", "liu", "davies_liu", "eigen")) {
+                           method = c("davies", "saddlepoint", "liu", "davies_liu", "eigen")) {
   method <- match.arg(method)
   # Tail probability used with per-gene eigenvalues: overall test, component tests
-  overall_tail <- if (method %in% c("davies_liu", "davies")) .davies_eigen else .liu_eigen
-  component_tail <- if (method == "davies") .davies_eigen else .liu_eigen
+  overall_tail <- switch(method, davies = , davies_liu = .davies_eigen,
+                         saddlepoint = .saddle_eigen, .liu_eigen)
+  component_tail <- switch(method, davies = .davies_eigen,
+                           saddlepoint = .saddle_eigen, .liu_eigen)
   m <- length(Klist)
   G <- nrow(Y)
   out <- matrix(NA_real_, G, 1 + length(test_index))

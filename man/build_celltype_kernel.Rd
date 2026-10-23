@@ -4,23 +4,40 @@
 \alias{build_celltype_kernel}
 \title{Cell-type kernel}
 \usage{
-build_celltype_kernel(celltype, gamma = 1)
+build_celltype_kernel(
+  celltype,
+  gamma = 1,
+  distance = c("auto", "hamming", "euclidean")
+)
 }
 \arguments{
 \item{celltype}{Cell-type labels or a cells x cell-types matrix, see
 \code{\link[=celltype_matrix]{celltype_matrix()}}.}
 
 \item{gamma}{Kernel scale.}
+
+\item{distance}{\code{"auto"} (default), \code{"hamming"} or \code{"euclidean"}.}
 }
 \value{
 An n x n kernel matrix.
 }
 \description{
-Hamming kernel between the cell-type profiles of every pair of cells:
-\eqn{K_{ij} = \exp(-\gamma d_H(x_i, x_j))}, where \eqn{d_H} counts the
-cell-type columns on which cells \eqn{i} and \eqn{j} differ. For one-hot
-labels this is 1 for cells of the same type and \eqn{e^{-2\gamma}} otherwise.
+Kernel between the cell-type profiles \eqn{x_i} (single-cell labels or
+spot-level cell-type proportions) of every pair of cells,
+\eqn{K_{ij} = \exp(-\gamma d(x_i, x_j))}, with
+\describe{
+\item{\code{"hamming"}}{\eqn{d} the number of cell-type columns on which the
+two cells differ (Hamming kernel), for single-cell data where the
+cell-type matrix is 0/1;}
+\item{\code{"euclidean"}}{\eqn{d} the squared Euclidean distance (Gaussian
+kernel), for cell-type proportions, e.g. from deconvolution of spots.}
+}
+With \code{distance = "auto"} (default) the Hamming kernel is used when every
+entry of the cell-type matrix is 0 or 1, and the Euclidean kernel
+otherwise.
 }
 \examples{
 build_celltype_kernel(c("A", "B", "A"))
+prop <- rbind(c(0.7, 0.3, 0), c(0.6, 0.2, 0.2), c(0, 0.1, 0.9))
+build_celltype_kernel(prop)
 }

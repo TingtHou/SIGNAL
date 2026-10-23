@@ -9,6 +9,9 @@ SIGNAL(
   location,
   celltype,
   kernels = NULL,
+  approximation = "auto",
+  max_cells = 6000,
+  celltype_distance = c("auto", "hamming", "euclidean"),
   filter = c("min_cells", "celina"),
   min_cells = 10,
   percentage_cell = 0.1,
@@ -17,7 +20,7 @@ SIGNAL(
   n_imp = 10,
   alpha = 0.05,
   adjust = "BH",
-  method = c("davies", "liu", "davies_liu"),
+  method = c("davies", "saddlepoint", "liu", "davies_liu"),
   ncores = 1,
   seed = NULL,
   project = "SIGNAL",
@@ -35,8 +38,26 @@ as cell names.}
 indicator matrix.}
 
 \item{kernels}{Optional list of n x n spatial kernel matrices (or a single
-matrix). By default the 11 kernels of \code{\link[=build_spatial_kernels]{build_spatial_kernels()}} are built
-from the cell coordinates.}
+matrix). By default the spatial kernels are built from the cell
+coordinates, as set by \code{approximation}.}
+
+\item{approximation}{Which spatial kernels to build when \code{kernels} is
+\code{NULL}:
+\itemize{
+\item \code{"auto"} (default): the 11 kernels of \code{\link[=build_spatial_kernels]{build_spatial_kernels()}} for up
+to \code{max_cells} cells, and one Gaussian kernel
+(\code{\link[=build_gaussian_kernel]{build_gaussian_kernel()}}) for more, as CELINA recommends for large
+data.
+\item \code{FALSE}: always the 11 kernels.
+\item \code{TRUE}: always the single Gaussian kernel.
+}}
+
+\item{max_cells}{Largest number of cells for which \code{approximation = "auto"}
+uses the 11 kernels.}
+
+\item{celltype_distance}{Distance used by the cell-type kernel,
+\code{"auto"} (default; Hamming for 0/1 single-cell labels, Euclidean for
+proportions), \code{"hamming"} or \code{"euclidean"}; see \code{\link[=build_celltype_kernel]{build_celltype_kernel()}}.}
 
 \item{filter}{Filtering rule:
 \itemize{
@@ -66,6 +87,11 @@ all four tests, as in the code used for the simulation studies.
 Accurate down to about 1e-6, below which it reports 0 (shown as about
 1e-16 after combining kernels). Slowest: an n x n eigendecomposition per
 gene, test and kernel.
+\item \code{"saddlepoint"}: saddlepoint approximation (Kuonen, 1999) on the same
+eigenvalues, for all four tests. As fast as \code{"davies"} and accurate far
+into the tail, so very small p-values stay distinct instead of being
+reported as 0. Davies' value is used near the centre of the
+distribution, where the saddlepoint formula is unstable.
 \item \code{"liu"}: Liu's approximation for all four tests, from trace moments
 computed once per kernel. Fastest; its cost hardly depends on the
 number of genes. Can be conservative for the component tests when cell

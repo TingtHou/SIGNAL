@@ -144,20 +144,58 @@ SIGNAL_preprocess <- function(object, filter = c("min_cells", "celina"),
 #'
 #' @param object A [SIGNAL-class] object.
 #' @param kernels Optional list of n x n spatial kernel matrices (or a single
-#'   matrix). By default the 11 kernels of [build_spatial_kernels()] are built
-#'   from the cell coordinates.
-#' @param basis_number,standardize Passed to [build_spatial_kernels()].
+#'   matrix). By default the spatial kernels are built from the cell
+#'   coordinates, as set by `approximation`.
+#' @param approximation Which spatial kernels to build when `kernels` is
+#'   `NULL`:
+#'   * `"auto"` (default): the 11 kernels of [build_spatial_kernels()] for up
+#'     to `max_cells` cells, and one Gaussian kernel
+#'     ([build_gaussian_kernel()]) for more, as CELINA recommends for large
+#'     data.
+#'   * `FALSE`: always the 11 kernels.
+#'   * `TRUE`: always the single Gaussian kernel.
+#' @param max_cells Largest number of cells for which `approximation = "auto"`
+#'   uses the 11 kernels.
+#' @param bandwidth,tol Bandwidth and sparsity cut-off of the single Gaussian
+#'   kernel, see [build_gaussian_kernel()]. The default bandwidth is chosen
+#'   from the counts with [select_bandwidth()].
+#' @param celltype_distance Distance used by the cell-type kernel,
+#'   `"auto"` (default; Hamming for 0/1 single-cell labels, Euclidean for
+#'   proportions), `"hamming"` or `"euclidean"`; see [build_celltype_kernel()].
+#' @param basis_number,standardize Passed to [build_spatial_kernels()]
+#'   (`standardize` also to [build_gaussian_kernel()]).
 #' @param verbose Print progress messages.
 #' @return The object with `celltype_kernel` and `spatial_kernels` filled in.
 #' @export
-SIGNAL_kernel <- function(object, kernels = NULL, basis_number = 4,
+SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_cells = 6000,
+                          bandwidth = NULL, tol = 1e-4,
+                          celltype_distance = c("auto", "hamming", "euclidean"), basis_number = 4,
                           standardize = TRUE, verbose = TRUE) {
+  celltype_distance <- match.arg(celltype_distance)
+  if (celltype_distance == "auto") {
+    celltype_distance <- if (all(object@celltype %in% c(0, 1))) "hamming" else "euclidean"
+  }
   n <- nrow(object@location)
   user_kernels <- !is.null(kernels)
   if (!user_kernels) {
-    if (verbose) message("Building spatial kernels for ", n, " cells")
-    kernels <- build_spatial_kernels(object@location, basis_number = basis_number,
-                                     standardize = standardize)
+    if (identical(approximation, "auto")) approximation <- n > max_cells
+    if (!is.logical(approximation) || length(approximation) != 1 || is.na(approximation)) {
+      stop("`approximation` must be \"auto\", TRUE or FALSE.")
+    }
+    if (approximation) {
+      if (verbose) message("Building one Gaussian spatial kernel for ", n, " cells")
+      genes <- if (length(object@gene_expression) > 0) rownames(object@gene_expression) else NULL
+      K <- build_gaussian_kernel(object@location, bandwidth = bandwidth, counts = object@counts,
+                                 genes = genes, tol = tol, standardize = standardize)
+      bandwidth <- attr(K, "bandwidth")
+      if (verbose) message("Bandwidth: ", signif(bandwidth, 4))
+      attr(K, "bandwidth") <- NULL
+      kernels <- list(gaussian = K)
+    } else {
+      if (verbose) message("Building spatial kernels for ", n, " cells")
+      kernels <- build_spatial_kernels(object@location, basis_number = basis_number,
+                                       standardize = standardize)
+    }
   } else {
     if (!is.list(kernels)) kernels <- list(kernels)
     kernels <- lapply(kernels, as.matrix)
@@ -166,10 +204,13 @@ SIGNAL_kernel <- function(object, kernels = NULL, basis_number = 4,
     }
     if (is.null(names(kernels))) names(kernels) <- paste0("kernel_", seq_along(kernels))
   }
-  object@celltype_kernel <- build_celltype_kernel(object@celltype)
+  object@celltype_kernel <- build_celltype_kernel(object@celltype, distance = celltype_distance)
   object@spatial_kernels <- kernels
   object@params$kernel <- list(n_kernels = length(kernels), basis_number = basis_number,
-                               standardize = standardize, user_kernels = user_kernels)
+                               standardize = standardize, user_kernels = user_kernels,
+                               approximation = if (user_kernels) NA else approximation,
+                               bandwidth = if (!user_kernels && approximation) bandwidth else NULL,
+                               tol = tol, celltype_distance = celltype_distance)
   object
 }
 
@@ -205,6 +246,11 @@ SIGNAL_kernel <- function(object, kernels = NULL, basis_number = 4,
 #'     Accurate down to about 1e-6, below which it reports 0 (shown as about
 #'     1e-16 after combining kernels). Slowest: an n x n eigendecomposition per
 #'     gene, test and kernel.
+#'   * `"saddlepoint"`: saddlepoint approximation (Kuonen, 1999) on the same
+#'     eigenvalues, for all four tests. As fast as `"davies"` and accurate far
+#'     into the tail, so very small p-values stay distinct instead of being
+#'     reported as 0. Davies' value is used near the centre of the
+#'     distribution, where the saddlepoint formula is unstable.
 #'   * `"liu"`: Liu's approximation for all four tests, from trace moments
 #'     computed once per kernel. Fastest; its cost hardly depends on the
 #'     number of genes. Can be conservative for the component tests when cell
@@ -222,7 +268,7 @@ SIGNAL_kernel <- function(object, kernels = NULL, basis_number = 4,
 #'   described in [SIGNAL_classify()].
 #' @export
 SIGNAL_test <- function(object, alpha = 0.05, adjust = "BH",
-                        method = c("davies", "liu", "davies_liu"), ncores = 1, verbose = TRUE) {
+                        method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1, verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
@@ -315,7 +361,7 @@ SIGNAL_classify <- function(x, alpha = 0.05, adjust = "BH") {
 #' @return The object with `celltype_result`, a genes x cell-types matrix of
 #'   Cauchy-combined p-values, filled in.
 #' @export
-SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "liu", "davies_liu"),
+SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepoint", "liu", "davies_liu"),
                             ncores = 1, verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
@@ -371,11 +417,13 @@ SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "liu", "d
 #' head(obj@result)
 #' @export
 SIGNAL <- function(counts, location, celltype, kernels = NULL,
+                   approximation = "auto", max_cells = 6000,
+                   celltype_distance = c("auto", "hamming", "euclidean"),
                    filter = c("min_cells", "celina"), min_cells = 10,
                    percentage_cell = 0.1, min_total_counts = 10,
                    transform = c("impute", "rank"), n_imp = 10,
                    alpha = 0.05, adjust = "BH",
-                   method = c("davies", "liu", "davies_liu"), ncores = 1, seed = NULL,
+                   method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1, seed = NULL,
                    project = "SIGNAL", verbose = TRUE) {
   obj <- createSIGNALobject(counts, location, celltype, project = project)
   obj <- SIGNAL_preprocess(obj, filter = filter, min_cells = min_cells,
@@ -383,7 +431,9 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                            min_total_counts = min_total_counts,
                            transform = transform, n_imp = n_imp,
                            seed = seed, verbose = verbose)
-  obj <- SIGNAL_kernel(obj, kernels = kernels, verbose = verbose)
+  obj <- SIGNAL_kernel(obj, kernels = kernels, approximation = approximation,
+                       celltype_distance = celltype_distance,
+                       max_cells = max_cells, verbose = verbose)
   SIGNAL_test(obj, alpha = alpha, adjust = adjust, method = method,
               ncores = ncores, verbose = verbose)
 }

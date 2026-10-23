@@ -7,7 +7,7 @@
 SIGNAL_celltype(
   object,
   genes = NULL,
-  method = c("davies", "liu", "davies_liu"),
+  method = c("davies", "saddlepoint", "liu", "davies_liu"),
   ncores = 1,
   verbose = TRUE
 )
@@ -26,6 +26,11 @@ all four tests, as in the code used for the simulation studies.
 Accurate down to about 1e-6, below which it reports 0 (shown as about
 1e-16 after combining kernels). Slowest: an n x n eigendecomposition per
 gene, test and kernel.
+\item \code{"saddlepoint"}: saddlepoint approximation (Kuonen, 1999) on the same
+eigenvalues, for all four tests. As fast as \code{"davies"} and accurate far
+into the tail, so very small p-values stay distinct instead of being
+reported as 0. Davies' value is used near the centre of the
+distribution, where the saddlepoint formula is unstable.
 \item \code{"liu"}: Liu's approximation for all four tests, from trace moments
 computed once per kernel. Fastest; its cost hardly depends on the
 number of genes. Can be conservative for the component tests when cell

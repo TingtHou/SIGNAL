@@ -7,6 +7,11 @@
 SIGNAL_kernel(
   object,
   kernels = NULL,
+  approximation = "auto",
+  max_cells = 6000,
+  bandwidth = NULL,
+  tol = 1e-04,
+  celltype_distance = c("auto", "hamming", "euclidean"),
   basis_number = 4,
   standardize = TRUE,
   verbose = TRUE
@@ -16,10 +21,33 @@ SIGNAL_kernel(
 \item{object}{A \link[=SIGNAL-class]{SIGNAL} object.}
 
 \item{kernels}{Optional list of n x n spatial kernel matrices (or a single
-matrix). By default the 11 kernels of \code{\link[=build_spatial_kernels]{build_spatial_kernels()}} are built
-from the cell coordinates.}
+matrix). By default the spatial kernels are built from the cell
+coordinates, as set by \code{approximation}.}
 
-\item{basis_number, standardize}{Passed to \code{\link[=build_spatial_kernels]{build_spatial_kernels()}}.}
+\item{approximation}{Which spatial kernels to build when \code{kernels} is
+\code{NULL}:
+\itemize{
+\item \code{"auto"} (default): the 11 kernels of \code{\link[=build_spatial_kernels]{build_spatial_kernels()}} for up
+to \code{max_cells} cells, and one Gaussian kernel
+(\code{\link[=build_gaussian_kernel]{build_gaussian_kernel()}}) for more, as CELINA recommends for large
+data.
+\item \code{FALSE}: always the 11 kernels.
+\item \code{TRUE}: always the single Gaussian kernel.
+}}
+
+\item{max_cells}{Largest number of cells for which \code{approximation = "auto"}
+uses the 11 kernels.}
+
+\item{bandwidth, tol}{Bandwidth and sparsity cut-off of the single Gaussian
+kernel, see \code{\link[=build_gaussian_kernel]{build_gaussian_kernel()}}. The default bandwidth is chosen
+from the counts with \code{\link[=select_bandwidth]{select_bandwidth()}}.}
+
+\item{celltype_distance}{Distance used by the cell-type kernel,
+\code{"auto"} (default; Hamming for 0/1 single-cell labels, Euclidean for
+proportions), \code{"hamming"} or \code{"euclidean"}; see \code{\link[=build_celltype_kernel]{build_celltype_kernel()}}.}
+
+\item{basis_number, standardize}{Passed to \code{\link[=build_spatial_kernels]{build_spatial_kernels()}}
+(\code{standardize} also to \code{\link[=build_gaussian_kernel]{build_gaussian_kernel()}}).}
 
 \item{verbose}{Print progress messages.}
 }
