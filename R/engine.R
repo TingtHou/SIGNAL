@@ -204,6 +204,11 @@
   }
   failed <- vapply(res, inherits, logical(1), what = "try-error")
   if (any(failed)) stop("Parallel computation failed: ", res[[which(failed)[1]]])
+  lost <- vapply(res, is.null, logical(1))
+  if (any(lost)) {
+    stop(sum(lost), " parallel worker(s) did not return results, probably because they ran out ",
+         "of memory. Use fewer cores (ncores) or parallel = \"genes\".", call. = FALSE)
+  }
   res
 }
 

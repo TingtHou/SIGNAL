@@ -222,6 +222,14 @@ test_that("gene-level split gives the same p-values as one pass", {
 })
 
 test_that("parallel option splits cores between kernels and genes", {
-  expect_equal(SIGNAL:::.split_cores(4), list(kernels = 1, genes = 4))
+  expect_equal(SIGNAL:::.split_cores(4, "genes"), list(kernels = 1, genes = 4))
   expect_equal(SIGNAL:::.split_cores(4, "kernels"), list(kernels = 4, genes = 1))
+  # auto: one kernel -> genes; many genes with davies -> genes;
+  # few genes with the costly davies_liu set-up -> kernels
+  expect_equal(SIGNAL:::.auto_parallel(4, 1, 2, "davies_liu", 100), 1L)
+  expect_equal(SIGNAL:::.auto_parallel(4, 11, 5000, "davies", 100), 1L)
+  expect_equal(SIGNAL:::.auto_parallel(4, 11, 2, "davies_liu", 100), 4L)
+  expect_equal(SIGNAL:::.auto_parallel(1, 11, 2, "davies_liu", 100), 1L)
+  expect_equal(SIGNAL:::.split_cores(4, "auto", 11, 2, "davies_liu", 100), list(kernels = 4, genes = 1))
+  expect_equal(SIGNAL:::.split_cores(4, "auto", 11, 5000, "davies", 100), list(kernels = 1, genes = 4))
 })

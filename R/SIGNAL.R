@@ -266,14 +266,19 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   `OPENBLAS_NUM_THREADS=1` before starting R so that the workers do not
 #'   compete for cores.
 #' @param parallel How the cores are used:
-#'   * `"genes"` (default): kernels are processed one at a time and the genes
-#'     are split over the workers. The kernel set-up is computed once and
-#'     shared, so each worker only adds about 3 n x n matrices, and all
-#'     workers stay busy for any number of kernels.
+#'   * `"auto"` (default): whichever of the two below is expected to be
+#'     faster, from the number of kernels, genes and cores and the cost of
+#'     `method`'s per-kernel set-up; `"kernels"` only if its workers fit in
+#'     the available memory.
+#'   * `"genes"`: kernels are processed one at a time and the genes are split
+#'     over the workers. The kernel set-up is computed once and shared, so
+#'     each worker only adds about 3 n x n matrices, and all workers stay busy
+#'     for any number of kernels.
 #'   * `"kernels"`: spatial kernels are processed in parallel. Each worker
-#'     holds about 25 n x n matrices, so memory grows with `ncores`, and at
-#'     most one core per kernel is used. Can be faster with `"liu"` or
-#'     `"davies_liu"` and few genes, whose per-kernel set-up is costly.
+#'     does its own set-up and holds about 20 (`"davies"`) to 50 (`"liu"`,
+#'     `"davies_liu"`) n x n matrices, and at most one core per kernel is
+#'     used. Faster with `"liu"` or `"davies_liu"` and few genes, whose
+#'     per-kernel set-up is costly.
 #' @param verbose Print progress messages and, with `ncores > 1`, a progress
 #'   bar for each spatial kernel ([pbmcapply::pbmclapply()]).
 #' @return The object with `result` and `pvalues_by_kernel` filled in.
@@ -283,14 +288,14 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #' @export
 SIGNAL_test <- function(object,
                         method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
-                        parallel = c("genes", "kernels"), verbose = TRUE) {
+                        parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
   kernels <- object@spatial_kernels
   K_celltype <- object@celltype_kernel
   if (is.null(ncores)) ncores <- .default_cores()
-  cores <- .split_cores(ncores, parallel)
+  cores <- .split_cores(ncores, parallel, length(object@spatial_kernels), nrow(Y), method, ncol(Y))
 
   job <- .kernel_job(Y, K_celltype, 1:3, method, ncores = cores$genes, progress = verbose)
   per_kernel <- .map_kernels(kernels, cores$kernels, verbose, job)
@@ -330,12 +335,12 @@ SIGNAL_test <- function(object,
 #'   Cauchy-combined p-values, filled in.
 #' @export
 SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepoint", "liu", "davies_liu"),
-                            ncores = NULL, parallel = c("genes", "kernels"), verbose = TRUE) {
+                            ncores = NULL, parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
   if (is.null(ncores)) ncores <- .default_cores()
-  cores <- .split_cores(ncores, parallel)
+  cores <- .split_cores(ncores, parallel, length(object@spatial_kernels), nrow(Y), method, ncol(Y))
   if (is.null(genes)) genes <- rownames(Y)
   missing_genes <- setdiff(genes, rownames(Y))
   if (length(missing_genes) > 0) {
@@ -386,7 +391,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                    percentage_cell = 0.1, min_total_counts = 10,
                    transform = c("impute", "rank"), n_imp = 10,
                    method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
-                   parallel = c("genes", "kernels"), seed = NULL,
+                   parallel = c("auto", "genes", "kernels"), seed = NULL,
                    project = "SIGNAL", verbose = TRUE) {
   obj <- createSIGNALobject(counts, location, celltype, project = project)
   obj <- SIGNAL_preprocess(obj, filter = filter, min_cells = min_cells,
@@ -407,9 +412,45 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
 }
 
 # Cores for the kernel level and the gene level, from `ncores` and `parallel`.
-.split_cores <- function(ncores, parallel = c("genes", "kernels")) {
+# "auto" compares the expected run time of the two modes, in units of one
+# n x n matrix product: per-kernel set-up S and per-gene work g for `method`.
+#   genes:   n_kernels * (S + n_genes * g / ncores)
+#   kernels: ceiling(n_kernels / k) * (S + n_genes * g), k kernel workers
+# where k = min(ncores, n_kernels) and at most the number of kernel workers
+# that fit in the available memory.
+.split_cores <- function(ncores, parallel = c("auto", "genes", "kernels"),
+                         n_kernels = 1, n_genes = 1, method = "davies", n_cells = 1) {
   parallel <- match.arg(parallel)
-  if (parallel == "kernels") list(kernels = ncores, genes = 1) else list(kernels = 1, genes = ncores)
+  if (parallel == "genes") return(list(kernels = 1, genes = ncores))
+  if (parallel == "kernels") return(list(kernels = ncores, genes = 1))
+  k <- .auto_parallel(ncores, n_kernels, n_genes, method, n_cells)
+  if (k > 1) list(kernels = k, genes = 1) else list(kernels = 1, genes = ncores)
+}
+
+# Number of kernel workers for "auto": > 1 for kernel-level parallelism,
+# 1 for gene-level parallelism.
+.auto_parallel <- function(ncores, n_kernels, n_genes, method, n_cells) {
+  if (ncores <= 1 || n_kernels <= 1) return(1L)
+  heavy_setup <- method %in% c("liu", "davies_liu")
+  S <- if (heavy_setup) 39 else 0.5
+  g <- switch(method, liu = 0.01, davies_liu = 2, 13)
+  k <- min(ncores, n_kernels)
+  # Each kernel worker holds about 50 (liu, davies_liu) or 20 n x n matrices
+  per_worker_gb <- (if (heavy_setup) 50 else 20) * 8 * n_cells^2 / 1024^3
+  avail_gb <- .available_memory_gb()
+  if (!is.na(avail_gb)) k <- min(k, floor(0.9 * avail_gb / per_worker_gb))
+  if (k < 2) return(1L)
+  t_genes <- n_kernels * (S + n_genes * g / ncores)
+  t_kernels <- ceiling(n_kernels / k) * (S + n_genes * g)
+  if (t_kernels < t_genes) as.integer(k) else 1L
+}
+
+# Available memory in GB (Linux: MemAvailable in /proc/meminfo); NA if unknown.
+.available_memory_gb <- function() {
+  if (!file.exists("/proc/meminfo")) return(NA_real_)
+  m <- grep("^MemAvailable:", readLines("/proc/meminfo"), value = TRUE)
+  if (!length(m)) return(NA_real_)
+  as.numeric(gsub("[^0-9]", "", m)) / 1024^2
 }
 
 # All available cores: the Slurm allocation if set, otherwise the machine's

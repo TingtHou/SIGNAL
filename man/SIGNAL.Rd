@@ -20,7 +20,7 @@ SIGNAL(
   n_imp = 10,
   method = c("davies", "saddlepoint", "liu", "davies_liu"),
   ncores = NULL,
-  parallel = c("genes", "kernels"),
+  parallel = c("auto", "genes", "kernels"),
   seed = NULL,
   project = "SIGNAL",
   verbose = TRUE
@@ -110,14 +110,19 @@ compete for cores.}
 
 \item{parallel}{How the cores are used:
 \itemize{
-\item \code{"genes"} (default): kernels are processed one at a time and the genes
-are split over the workers. The kernel set-up is computed once and
-shared, so each worker only adds about 3 n x n matrices, and all
-workers stay busy for any number of kernels.
+\item \code{"auto"} (default): whichever of the two below is expected to be
+faster, from the number of kernels, genes and cores and the cost of
+\code{method}'s per-kernel set-up; \code{"kernels"} only if its workers fit in
+the available memory.
+\item \code{"genes"}: kernels are processed one at a time and the genes are split
+over the workers. The kernel set-up is computed once and shared, so
+each worker only adds about 3 n x n matrices, and all workers stay busy
+for any number of kernels.
 \item \code{"kernels"}: spatial kernels are processed in parallel. Each worker
-holds about 25 n x n matrices, so memory grows with \code{ncores}, and at
-most one core per kernel is used. Can be faster with \code{"liu"} or
-\code{"davies_liu"} and few genes, whose per-kernel set-up is costly.
+does its own set-up and holds about 20 (\code{"davies"}) to 50 (\code{"liu"},
+\code{"davies_liu"}) n x n matrices, and at most one core per kernel is
+used. Faster with \code{"liu"} or \code{"davies_liu"} and few genes, whose
+per-kernel set-up is costly.
 }}
 
 \item{seed}{Optional random seed, used when \code{transform = "impute"}.}
