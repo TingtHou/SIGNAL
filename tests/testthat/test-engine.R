@@ -61,7 +61,7 @@ test_that("davies_liu method reproduces the original tests (Davies overall, Liu 
   }
 })
 
-test_that("SIGNAL() defaults reproduce the original pipeline end to end", {
+test_that("SIGNAL() with davies_liu reproduces the original real-data pipeline end to end", {
   sim <- simulate_signal_data(n_cells = 70, n_genes = c(null = 3, spatial = 2, ctSVG = 3), seed = 11)
   K <- build_spatial_kernels(sim$location)[c(1, 4, 11)]
   K_ct <- build_celltype_kernel(sim$celltype)
@@ -71,18 +71,18 @@ test_that("SIGNAL() defaults reproduce the original pipeline end to end", {
     KList = ref_kernels(K_ct, Ks), pfun = CompQuadForm::liu,
     pfun_overall = function(q, lambda) CompQuadForm::davies(q, lambda)$Qq)))
   ref <- sapply(1:4, function(t) CombinePValues(sapply(per_kernel, function(p) p[, t])))
-  obj <- SIGNAL(sim$counts, sim$location, sim$celltype, kernels = K, min_cells = 0,
+  obj <- SIGNAL(sim$counts, sim$location, sim$celltype, kernels = K, min_cells = 0, method = "davies_liu",
                 verbose = FALSE)
   ours <- as.matrix(obj@result[, c("p_overall", "p_celltype", "p_spatial", "p_ctSVG")])
   expect_equal(ours, ref, ignore_attr = TRUE, tolerance = 1e-6)
 })
 
-test_that("moment method agrees with the eigen method", {
+test_that("liu method agrees with Liu on per-gene eigenvalues", {
   pb <- small_problem()
   for (Ks in pb$K_sp) {
     Klist <- SIGNAL:::.signal_kernels(pb$K_ct, Ks)
     p_eig <- SIGNAL:::.signal_engine(pb$Y, Klist, 1:3, method = "eigen")
-    p_mom <- SIGNAL:::.signal_engine(pb$Y, Klist, 1:3, method = "moment")
+    p_mom <- SIGNAL:::.signal_engine(pb$Y, Klist, 1:3, method = "liu")
     expect_equal(p_mom, p_eig, tolerance = 1e-6)
   }
 })

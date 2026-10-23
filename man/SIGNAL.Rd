@@ -17,7 +17,7 @@ SIGNAL(
   n_imp = 10,
   alpha = 0.05,
   adjust = "BH",
-  method = c("davies_liu", "davies", "moment", "eigen"),
+  method = c("davies", "liu", "davies_liu"),
   ncores = 1,
   seed = NULL,
   project = "SIGNAL",
@@ -61,20 +61,18 @@ locations and cell types.
 
 \item{method}{How tail probabilities are computed.
 \itemize{
-\item \code{"davies_liu"} (default): as in the original SIGNAL code used for the
-real-data analyses. The overall test uses Davies' algorithm on the
-per-gene eigenvalues (accurate down to about 1e-6, below which it
-reports 0, shown as about 1e-16 after combining kernels). The cell-type,
-spatial and ctSVG tests use Liu's approximation, evaluated from trace
-moments computed once per kernel, or from per-gene eigenvalues when the
-fitted null covariance is not positive definite.
-\item \code{"davies"}: Davies' algorithm for all four tests, as in the code used
-for the simulation studies. Slowest: an n x n eigendecomposition per
+\item \code{"davies"} (default): Davies' algorithm on the per-gene eigenvalues for
+all four tests, as in the code used for the simulation studies.
+Accurate down to about 1e-6, below which it reports 0 (shown as about
+1e-16 after combining kernels). Slowest: an n x n eigendecomposition per
 gene, test and kernel.
-\item \code{"moment"}: Liu's approximation for all four tests from trace moments.
-Fastest; its cost hardly depends on the number of genes.
-\item \code{"eigen"}: Liu's approximation from per-gene eigenvalues. Mainly for
-checking.
+\item \code{"liu"}: Liu's approximation for all four tests, from trace moments
+computed once per kernel. Fastest; its cost hardly depends on the
+number of genes. Can be conservative for the component tests when cell
+types and spatial domains overlap strongly.
+\item \code{"davies_liu"}: as in the original SIGNAL code used for the real-data
+analyses. Davies for the overall test and Liu for the cell-type,
+spatial and ctSVG tests.
 }}
 
 \item{ncores}{Number of cores used to process spatial kernels in parallel

@@ -191,26 +191,24 @@ SIGNAL_kernel <- function(object, kernels = NULL, basis_number = 4,
 #' cell-type and spatial kernels. All three effect kernels are shifted to zero
 #' grand mean and an identity kernel models the residual. Variance components
 #' are estimated by MINQUE(0). Tail probabilities use Liu's moment-matching
-#' approximation.
+#' approximation or Davies' algorithm (see `method`).
 #'
 #' @param object A [SIGNAL-class] object after [SIGNAL_preprocess()] and
 #'   [SIGNAL_kernel()].
 #' @param alpha,adjust Passed to [SIGNAL_classify()].
 #' @param method How tail probabilities are computed.
-#'   * `"davies_liu"` (default): as in the original SIGNAL code used for the
-#'     real-data analyses. The overall test uses Davies' algorithm on the
-#'     per-gene eigenvalues (accurate down to about 1e-6, below which it
-#'     reports 0, shown as about 1e-16 after combining kernels). The cell-type,
-#'     spatial and ctSVG tests use Liu's approximation, evaluated from trace
-#'     moments computed once per kernel, or from per-gene eigenvalues when the
-#'     fitted null covariance is not positive definite.
-#'   * `"davies"`: Davies' algorithm for all four tests, as in the code used
-#'     for the simulation studies. Slowest: an n x n eigendecomposition per
+#'   * `"davies"` (default): Davies' algorithm on the per-gene eigenvalues for
+#'     all four tests, as in the code used for the simulation studies.
+#'     Accurate down to about 1e-6, below which it reports 0 (shown as about
+#'     1e-16 after combining kernels). Slowest: an n x n eigendecomposition per
 #'     gene, test and kernel.
-#'   * `"moment"`: Liu's approximation for all four tests from trace moments.
-#'     Fastest; its cost hardly depends on the number of genes.
-#'   * `"eigen"`: Liu's approximation from per-gene eigenvalues. Mainly for
-#'     checking.
+#'   * `"liu"`: Liu's approximation for all four tests, from trace moments
+#'     computed once per kernel. Fastest; its cost hardly depends on the
+#'     number of genes. Can be conservative for the component tests when cell
+#'     types and spatial domains overlap strongly.
+#'   * `"davies_liu"`: as in the original SIGNAL code used for the real-data
+#'     analyses. Davies for the overall test and Liu for the cell-type,
+#'     spatial and ctSVG tests.
 #' @param ncores Number of cores used to process spatial kernels in parallel
 #'   (forking; on Windows only 1 core is used). Each worker holds about 25
 #'   n x n matrices.
@@ -221,7 +219,7 @@ SIGNAL_kernel <- function(object, kernels = NULL, basis_number = 4,
 #'   described in [SIGNAL_classify()].
 #' @export
 SIGNAL_test <- function(object, alpha = 0.05, adjust = "BH",
-                        method = c("davies_liu", "davies", "moment", "eigen"), ncores = 1, verbose = TRUE) {
+                        method = c("davies", "liu", "davies_liu"), ncores = 1, verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
@@ -314,7 +312,7 @@ SIGNAL_classify <- function(x, alpha = 0.05, adjust = "BH") {
 #' @return The object with `celltype_result`, a genes x cell-types matrix of
 #'   Cauchy-combined p-values, filled in.
 #' @export
-SIGNAL_celltype <- function(object, genes = NULL, method = c("davies_liu", "davies", "moment", "eigen"),
+SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "liu", "davies_liu"),
                             ncores = 1, verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
@@ -374,7 +372,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                    percentage_cell = 0.1, min_total_counts = 10,
                    transform = c("rank", "impute"), n_imp = 10,
                    alpha = 0.05, adjust = "BH",
-                   method = c("davies_liu", "davies", "moment", "eigen"), ncores = 1, seed = NULL,
+                   method = c("davies", "liu", "davies_liu"), ncores = 1, seed = NULL,
                    project = "SIGNAL", verbose = TRUE) {
   obj <- createSIGNALobject(counts, location, celltype, project = project)
   obj <- SIGNAL_preprocess(obj, filter = filter, min_cells = min_cells,

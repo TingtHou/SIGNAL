@@ -9,16 +9,16 @@
 # * Component test for tau_k: p = P(y' Q_k y > tau_k) with y ~ N(0, V0), where
 #   V0 = sum_{j != k} tau0_j K_j is the MINQUE(0) fit without kernel k.
 #
-# Both tail probabilities use Liu's approximation, which only needs the power
-# sums tr(A^h), h = 1..4, of the matrix A of the quadratic form. These traces
-# are polynomials in r (or tau0) whose coefficients are traces of kernel
-# products, so they are computed once per kernel set and evaluated for all
-# genes at once ("moment" method). The "eigen" method computes the eigenvalues
-# of A for every gene and applies Liu's approximation to them. The "davies"
-# method uses those eigenvalues with Davies' algorithm (CompQuadForm::davies)
-# for every test. The default "davies_liu" method is the original SIGNAL code
-# used for the real-data analyses: Davies for the overall test and Liu for the
-# component tests.
+# The default "davies" method computes the eigenvalues of the matrix A of the
+# quadratic form for every gene and applies Davies' algorithm
+# (CompQuadForm::davies) to them, for every test, as in the code used for the
+# simulation studies. The "liu" method uses Liu's approximation, which only
+# needs the power sums tr(A^h), h = 1..4. These traces are polynomials in r (or
+# tau0) whose coefficients are traces of kernel products, so they are computed
+# once per kernel set and evaluated for all genes at once. The "davies_liu"
+# method is the original SIGNAL code used for the real-data analyses: Davies for
+# the overall test and Liu for the component tests. The internal "eigen" method
+# applies Liu's approximation to per-gene eigenvalues (used to check "liu").
 
 # Liu, Tang and Zhang (2009) approximation to P(Q > q), vectorised, written in
 # terms of the power sums c_h = sum(lambda^h). Matches CompQuadForm::liu().
@@ -148,7 +148,7 @@
 # (rows of Y) with one kernel list (last kernel = identity).
 # Returns a G x (1 + length(test_index)) matrix of p-values.
 .signal_engine <- function(Y, Klist, test_index = 1:3,
-                           method = c("davies_liu", "davies", "moment", "eigen")) {
+                           method = c("davies", "liu", "davies_liu", "eigen")) {
   method <- match.arg(method)
   # Tail probability used with per-gene eigenvalues: overall test, component tests
   overall_tail <- if (method %in% c("davies_liu", "davies")) .davies_eigen else .liu_eigen
@@ -175,7 +175,7 @@
   r <- rowSums(tau[, effects, drop = FALSE]) / tau[, m]
   B <- Reduce(`+`, Q[effects])
   D <- Q[[m]]
-  if (method == "moment") {
+  if (method == "liu") {
     out[, 1] <- .overall_pvalue_moment(r, .overall_moments(B, D))
   } else {
     out[, 1] <- vapply(seq_len(G), function(g) {
@@ -191,7 +191,7 @@
     Cnull_inv <- tryCatch(solve(C[null_set, null_set]), error = function(e) NULL)
     if (is.null(Cnull_inv)) next
     tau0 <- U[, null_set, drop = FALSE] %*% t(Cnull_inv)
-    if (method %in% c("moment", "davies_liu")) {
+    if (method %in% c("liu", "davies_liu")) {
       mo <- .component_moments(Q[[k]], Klist[null_set])
       p <- .component_pvalue_moment(tau[, k], tau0, mo)
       if (method == "davies_liu") {
