@@ -61,6 +61,8 @@ test_that("sparse counts give the same result as dense counts", {
                                                  sim$location, sim$celltype),
                               seed = 1, verbose = FALSE)
   expect_equal(sparse@gene_expression, dense@gene_expression)
+  expect_equal(select_bandwidth(sparse@counts), select_bandwidth(dense@counts))
+  expect_equal(select_bandwidth(sparse@counts, genes = 1:2), select_bandwidth(dense@counts, genes = 1:2))
 })
 
 test_that("filter = 'celina' matches CELINA's FilteringGenesCells", {

@@ -171,7 +171,7 @@ select_bandwidth <- function(counts, genes = NULL) {
   lib <- if (inherits(counts, "Matrix")) Matrix::colSums(counts) else colSums(as.matrix(counts))
   sf <- lib / mean(lib)
   if (!is.null(genes)) counts <- counts[genes, , drop = FALSE]
-  counts_t <- t(counts)
+  counts_t <- if (inherits(counts, "Matrix")) Matrix::t(counts) else t(as.matrix(counts))
   bw <- vapply(seq_len(ncol(counts_t)), function(g) {
     y <- log2(as.numeric(counts_t[, g]) / sf + 1)
     tryCatch(stats::bw.nrd0(y), error = function(e) NA_real_)
