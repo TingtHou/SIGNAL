@@ -202,10 +202,10 @@ obj <- SIGNAL(counts, location, celltype)
   each spatial kernel. The workers are forked and share each kernel's set-up,
   so each adds only a few n x n matrices of memory. Windows cannot fork, so
   there the genes run on one core; use Linux (e.g. WSL or a cluster) for
-  parallel runs. With a multithreaded BLAS such as OpenBLAS, set
-  `OPENBLAS_NUM_THREADS=1` before starting R so that the workers do not
-  compete for cores. `parallel = "kernels"` processes the spatial kernels in
-  parallel instead (more memory per worker).
+  parallel runs. With a multithreaded BLAS such as OpenBLAS, each kernel's
+  set-up runs on `ncores` BLAS threads and each worker on one.
+  `parallel = "kernels"` processes the spatial kernels in parallel instead
+  (more memory per worker).
 * R linked to an optimised BLAS (OpenBLAS, Intel MKL, Apple Accelerate) speeds
   up the matrix products considerably.
 

@@ -45,10 +45,10 @@ Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
 \code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). The workers are
 forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}). Windows
 cannot fork, so there the computation runs on one core. How the cores are
-used is set by \code{parallel}. The number of BLAS threads is left to the
-system: with a multithreaded BLAS (e.g. OpenBLAS), set
-\code{OPENBLAS_NUM_THREADS=1} before starting R so that the workers do not
-compete for cores.}
+used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
+MKL), each kernel's set-up uses \code{ncores} BLAS threads and the workers one
+BLAS thread each (\link{RhpcBLASctl}); the previous setting is restored
+afterwards.}
 
 \item{parallel}{How the cores are used:
 \itemize{

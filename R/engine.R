@@ -174,21 +174,40 @@
 # Run the overall test and the component tests in `test_index` for all genes
 # (rows of Y) with one kernel list (last kernel = identity).
 # Returns a G x (1 + length(test_index)) matrix of p-values.
-# The gene-independent part (.signal_setup) is computed once; the genes are
-# then split over ncores forked workers that share it (one gene per task,
-# with a pbmclapply progress bar if `progress`). Windows cannot fork, so
-# there the genes run one after another.
+# The gene-independent part (.signal_setup) is computed once, using ncores
+# BLAS threads for its matrix products; the genes are then split over ncores
+# forked workers that share it, each with one BLAS thread (one gene per task,
+# with a pbmclapply progress bar if `progress`). Windows cannot fork, so there
+# the genes run one after another.
 .signal_engine <- function(Y, Klist, test_index = 1:3,
                            method = c("davies", "saddlepoint", "liu", "davies_liu", "eigen"),
                            ncores = 1, progress = FALSE) {
   method <- match.arg(method)
+  if (ncores > 1) {
+    blas <- .get_blas_threads()
+    on.exit(.set_blas_threads(blas))
+    .set_blas_threads(ncores)
+  }
   s <- .signal_setup(Klist, test_index, method)
   if (is.null(s)) return(matrix(NA_real_, nrow(Y), 1 + length(test_index)))
   G <- nrow(Y)
   if (ncores <= 1 || G <= 1) return(.signal_genes(Y, s, method))
+  .set_blas_threads(1)
   res <- .par_lapply(seq_len(G), function(g) .signal_genes(Y[g, , drop = FALSE], s, method),
                      ncores, progress)
   do.call(rbind, res)
+}
+
+# BLAS/OpenMP threads of this R process (RhpcBLASctl). Forked workers inherit
+# the setting at the time of forking.
+.get_blas_threads <- function() {
+  c(blas = RhpcBLASctl::blas_get_num_procs(), omp = RhpcBLASctl::omp_get_max_threads())
+}
+.set_blas_threads <- function(n) {
+  if (length(n) == 1) n <- c(blas = n, omp = n)
+  RhpcBLASctl::blas_set_num_threads(n[["blas"]])
+  RhpcBLASctl::omp_set_num_threads(n[["omp"]])
+  invisible(NULL)
 }
 
 # lapply over forked workers: pbmclapply with a progress bar, or mclapply

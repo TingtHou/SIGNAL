@@ -14,7 +14,7 @@ if (!require("devtools", quietly = TRUE)){
 devtools::install_github("TingtHou/SIGNAL", build_vignettes = TRUE)
 ```
 
-SIGNAL depends only on `CompQuadForm`, `ggplot2`, `pbmcapply` and packages that ship with R (`mgcv`, `methods`, `parallel`, `stats`, `utils`). It does not need compilation.
+SIGNAL depends only on `CompQuadForm`, `ggplot2`, `pbmcapply`, `RhpcBLASctl` and packages that ship with R (`mgcv`, `methods`, `parallel`, `stats`, `utils`). It does not need compilation.
 
 ## Detect and classify spatially variable genes with SIGNAL
 The best vignette for getting started with SIGNAL is the [Tutorial](https://tingthou.github.io/SIGNAL/tutorial.html). After installation, you can also open it in R with `vignette("SIGNAL")`.

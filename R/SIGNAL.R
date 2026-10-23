@@ -261,10 +261,10 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   [parallel::detectCores()] (2 under `R CMD check`). The workers are
 #'   forked processes that share memory ([pbmcapply::pbmclapply()]). Windows
 #'   cannot fork, so there the computation runs on one core. How the cores are
-#'   used is set by `parallel`. The number of BLAS threads is left to the
-#'   system: with a multithreaded BLAS (e.g. OpenBLAS), set
-#'   `OPENBLAS_NUM_THREADS=1` before starting R so that the workers do not
-#'   compete for cores.
+#'   used is set by `parallel`. With a multithreaded BLAS (e.g. OpenBLAS,
+#'   MKL), each kernel's set-up uses `ncores` BLAS threads and the workers one
+#'   BLAS thread each ([RhpcBLASctl]); the previous setting is restored
+#'   afterwards.
 #' @param parallel How the cores are used:
 #'   * `"auto"` (default): whichever of the two below is expected to be
 #'     faster, from the number of kernels, genes and cores and the cost of
@@ -477,6 +477,10 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
 .map_kernels <- function(kernels, ncores, verbose, FUN) {
   if (ncores > 1) {
     if (verbose) message("Spatial kernels 1-", length(kernels), " on ", ncores, " workers")
+    # Kernel workers each use one BLAS thread
+    blas <- .get_blas_threads()
+    on.exit(.set_blas_threads(blas))
+    .set_blas_threads(1)
     return(.par_lapply(kernels, FUN, ncores, progress = verbose, preschedule = FALSE))
   }
   lapply(seq_along(kernels), function(i) {

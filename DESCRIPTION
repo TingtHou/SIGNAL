@@ -28,6 +28,7 @@ Imports:
     methods,
     mgcv,
     parallel,
+    RhpcBLASctl,
     pbmcapply,
     stats,
     utils
