@@ -33,7 +33,8 @@ analysis. Create one with \code{\link[=createSIGNALobject]{createSIGNALobject()}
 
 \item{\code{spatial_kernels}}{List of spatial kernels, set by \code{\link[=SIGNAL_kernel]{SIGNAL_kernel()}}.}
 
-\item{\code{result}}{Per-gene p-values and classification, set by \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}
+\item{\code{result}}{Genes x p-values data frame (\code{p_overall}, \code{p_celltype},
+\code{p_spatial}, \code{p_ctSVG}), set by \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}
 
 \item{\code{pvalues_by_kernel}}{List of genes x kernels p-value matrices for the
 overall, cell-type, spatial and ctSVG tests, set by \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}

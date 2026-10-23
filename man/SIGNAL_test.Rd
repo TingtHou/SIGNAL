@@ -2,14 +2,12 @@
 % Please edit documentation in R/SIGNAL.R
 \name{SIGNAL_test}
 \alias{SIGNAL_test}
-\title{Test and classify spatially variable genes}
+\title{Test spatially variable genes}
 \usage{
 SIGNAL_test(
   object,
-  alpha = 0.05,
-  adjust = "BH",
   method = c("davies", "saddlepoint", "liu", "davies_liu"),
-  ncores = 1,
+  ncores = NULL,
   parallel = c("genes", "kernels"),
   verbose = TRUE
 )
@@ -17,8 +15,6 @@ SIGNAL_test(
 \arguments{
 \item{object}{A \link[=SIGNAL-class]{SIGNAL} object after \code{\link[=SIGNAL_preprocess]{SIGNAL_preprocess()}} and
 \code{\link[=SIGNAL_kernel]{SIGNAL_kernel()}}.}
-
-\item{alpha, adjust}{Passed to \code{\link[=SIGNAL_classify]{SIGNAL_classify()}}.}
 
 \item{method}{How tail probabilities are computed.
 \itemize{
@@ -41,8 +37,15 @@ analyses. Davies for the overall test and Liu for the cell-type,
 spatial and ctSVG tests.
 }}
 
-\item{ncores}{Number of cores (forked workers; on Windows only 1 core is
-used). How they are used is set by \code{parallel}.}
+\item{ncores}{Number of cores. Defaults to all available cores: the
+Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
+\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). The workers are
+forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}). Windows
+cannot fork, so there the computation runs on one core. How the cores are
+used is set by \code{parallel}. The number of BLAS threads is left to the
+system: with a multithreaded BLAS (e.g. OpenBLAS), set
+\code{OPENBLAS_NUM_THREADS=1} before starting R so that the workers do not
+compete for cores.}
 
 \item{parallel}{How the cores are used:
 \itemize{
@@ -54,18 +57,16 @@ workers stay busy for any number of kernels.
 holds about 25 n x n matrices, so memory grows with \code{ncores}, and at
 most one core per kernel is used. Can be faster with \code{"liu"} or
 \code{"davies_liu"} and few genes, whose per-kernel set-up is costly.
-}
+}}
 
-With an optimised multithreaded BLAS, set its number of threads so that
-threads x \code{ncores} does not exceed the number of cores.}
-
-\item{verbose}{Print progress messages.}
+\item{verbose}{Print progress messages and, with \code{ncores > 1}, a progress
+bar for each spatial kernel (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}).}
 }
 \value{
 The object with \code{result} and \code{pvalues_by_kernel} filled in.
-\code{result} has one row per gene with columns \code{gene}, \code{p_overall},
-\code{p_celltype}, \code{p_spatial}, \code{p_ctSVG} and the classification columns
-described in \code{\link[=SIGNAL_classify]{SIGNAL_classify()}}.
+\code{result} is a data frame with one row per gene (row names) and the
+p-values \code{p_overall}, \code{p_celltype}, \code{p_spatial} and \code{p_ctSVG}, combined
+over spatial kernels and not adjusted for multiple testing.
 }
 \description{
 For every gene, fits the variance component model
@@ -79,8 +80,7 @@ once for each spatial kernel. It runs an overall test of
 \item{ctSVG}{the spatial pattern differs between cell types.}
 }
 P-values are combined across spatial kernels with the Cauchy combination
-test (\code{\link[=combine_pvalues]{combine_pvalues()}}), and genes are classified with
-\code{\link[=SIGNAL_classify]{SIGNAL_classify()}}.
+test (\code{\link[=combine_pvalues]{combine_pvalues()}}).
 }
 \details{
 The interaction kernel is the element-wise product of the mean-centred

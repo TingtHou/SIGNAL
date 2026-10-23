@@ -11,7 +11,8 @@
 #'   [SIGNAL_preprocess()].
 #' @slot celltype_kernel Cell-type kernel, set by [SIGNAL_kernel()].
 #' @slot spatial_kernels List of spatial kernels, set by [SIGNAL_kernel()].
-#' @slot result Per-gene p-values and classification, set by [SIGNAL_test()].
+#' @slot result Genes x p-values data frame (`p_overall`, `p_celltype`,
+#'   `p_spatial`, `p_ctSVG`), set by [SIGNAL_test()].
 #' @slot pvalues_by_kernel List of genes x kernels p-value matrices for the
 #'   overall, cell-type, spatial and ctSVG tests, set by [SIGNAL_test()].
 #' @slot celltype_result Genes x cell-types matrix of ctSVG p-values, set by
@@ -50,23 +51,7 @@ setMethod("show", "SIGNAL", function(object) {
     cat(sprintf("  %d spatial kernels\n", length(object@spatial_kernels)))
   }
   if (steps[["test"]]) {
-    r <- object@result
-    p <- object@params
-    cat(sprintf("  %d genes tested; significant (%s-adjusted overall p < %g): %d\n",
-                nrow(r), p$adjust, p$alpha, sum(r$significant)))
-    cat(sprintf("    cell-type effect: %d | spatial effect: %d | ctSVG: %d\n",
-                sum(r$celltype_effect), sum(r$spatial_effect), sum(r$ctSVG_effect)))
+    cat(sprintf("  %d genes tested; p-values in @result\n", nrow(object@result)))
   }
   invisible(object)
-})
-
-#' Summarise SIGNAL results
-#'
-#' @param object A [SIGNAL-class] object after [SIGNAL_test()].
-#' @param ... Not used.
-#' @return A table of the number of genes in each category.
-#' @export
-setMethod("summary", "SIGNAL", function(object, ...) {
-  if (nrow(object@result) == 0) stop("Run SIGNAL_test() first.")
-  table(category = object@result$category)
 })

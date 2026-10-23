@@ -2,7 +2,6 @@
 
 export(SIGNAL)
 export(SIGNAL_celltype)
-export(SIGNAL_classify)
 export(SIGNAL_kernel)
 export(SIGNAL_plotGene)
 export(SIGNAL_preprocess)
@@ -18,7 +17,6 @@ export(select_bandwidth)
 export(simulate_signal_data)
 exportClasses(SIGNAL)
 exportMethods(show)
-exportMethods(summary)
 importFrom(methods,
   is,
   new,

@@ -214,7 +214,7 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
   object
 }
 
-#' Test and classify spatially variable genes
+#' Test spatially variable genes
 #'
 #' For every gene, fits the variance component model
 #' \deqn{y \sim N(0, \tau_1 K_{celltype} + \tau_2 K_{spatial} +
@@ -227,8 +227,7 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   \item{ctSVG}{the spatial pattern differs between cell types.}
 #' }
 #' P-values are combined across spatial kernels with the Cauchy combination
-#' test ([combine_pvalues()]), and genes are classified with
-#' [SIGNAL_classify()].
+#' test ([combine_pvalues()]).
 #'
 #' @details
 #' The interaction kernel is the element-wise product of the mean-centred
@@ -239,7 +238,6 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'
 #' @param object A [SIGNAL-class] object after [SIGNAL_preprocess()] and
 #'   [SIGNAL_kernel()].
-#' @param alpha,adjust Passed to [SIGNAL_classify()].
 #' @param method How tail probabilities are computed.
 #'   * `"davies"` (default): Davies' algorithm on the per-gene eigenvalues for
 #'     all four tests, as in the code used for the simulation studies.
@@ -258,8 +256,15 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   * `"davies_liu"`: as in the original SIGNAL code used for the real-data
 #'     analyses. Davies for the overall test and Liu for the cell-type,
 #'     spatial and ctSVG tests.
-#' @param ncores Number of cores (forked workers; on Windows only 1 core is
-#'   used). How they are used is set by `parallel`.
+#' @param ncores Number of cores. Defaults to all available cores: the
+#'   Slurm allocation (`SLURM_CPUS_PER_TASK`) when set, otherwise
+#'   [parallel::detectCores()] (2 under `R CMD check`). The workers are
+#'   forked processes that share memory ([pbmcapply::pbmclapply()]). Windows
+#'   cannot fork, so there the computation runs on one core. How the cores are
+#'   used is set by `parallel`. The number of BLAS threads is left to the
+#'   system: with a multithreaded BLAS (e.g. OpenBLAS), set
+#'   `OPENBLAS_NUM_THREADS=1` before starting R so that the workers do not
+#'   compete for cores.
 #' @param parallel How the cores are used:
 #'   * `"genes"` (default): kernels are processed one at a time and the genes
 #'     are split over the workers. The kernel set-up is computed once and
@@ -269,28 +274,26 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'     holds about 25 n x n matrices, so memory grows with `ncores`, and at
 #'     most one core per kernel is used. Can be faster with `"liu"` or
 #'     `"davies_liu"` and few genes, whose per-kernel set-up is costly.
-#'
-#'   With an optimised multithreaded BLAS, set its number of threads so that
-#'   threads x `ncores` does not exceed the number of cores.
-#' @param verbose Print progress messages.
+#' @param verbose Print progress messages and, with `ncores > 1`, a progress
+#'   bar for each spatial kernel ([pbmcapply::pbmclapply()]).
 #' @return The object with `result` and `pvalues_by_kernel` filled in.
-#'   `result` has one row per gene with columns `gene`, `p_overall`,
-#'   `p_celltype`, `p_spatial`, `p_ctSVG` and the classification columns
-#'   described in [SIGNAL_classify()].
+#'   `result` is a data frame with one row per gene (row names) and the
+#'   p-values `p_overall`, `p_celltype`, `p_spatial` and `p_ctSVG`, combined
+#'   over spatial kernels and not adjusted for multiple testing.
 #' @export
-SIGNAL_test <- function(object, alpha = 0.05, adjust = "BH",
-                        method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1,
+SIGNAL_test <- function(object,
+                        method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
                         parallel = c("genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
   kernels <- object@spatial_kernels
   K_celltype <- object@celltype_kernel
+  if (is.null(ncores)) ncores <- .default_cores()
   cores <- .split_cores(ncores, parallel)
 
-  per_kernel <- .map_kernels(kernels, cores$kernels, verbose, function(Ks) {
-    .signal_engine(Y, .signal_kernels(K_celltype, Ks), 1:3, method, ncores = cores$genes)
-  })
+  job <- .kernel_job(Y, K_celltype, 1:3, method, ncores = cores$genes, progress = verbose)
+  per_kernel <- .map_kernels(kernels, cores$kernels, verbose, job)
 
   tests <- c("overall", "celltype", "spatial", "ctSVG")
   pvalues_by_kernel <- lapply(seq_along(tests), function(t) {
@@ -299,63 +302,16 @@ SIGNAL_test <- function(object, alpha = 0.05, adjust = "BH",
   })
   names(pvalues_by_kernel) <- tests
 
-  result <- data.frame(
-    gene = rownames(Y),
+  object@result <- data.frame(
     p_overall = combine_pvalues(pvalues_by_kernel$overall),
     p_celltype = combine_pvalues(pvalues_by_kernel$celltype),
     p_spatial = combine_pvalues(pvalues_by_kernel$spatial),
     p_ctSVG = combine_pvalues(pvalues_by_kernel$ctSVG),
-    row.names = rownames(Y),
-    stringsAsFactors = FALSE
+    row.names = rownames(Y)
   )
-  object@result <- result
   object@pvalues_by_kernel <- pvalues_by_kernel
   object@params$test <- list(method = method)
-  SIGNAL_classify(object, alpha = alpha, adjust = adjust)
-}
-
-#' Classify genes from SIGNAL p-values
-#'
-#' A gene is significant when its multiplicity-adjusted overall p-value is
-#' below `alpha`. Each significant gene is then labelled with every effect
-#' whose p-value is below `alpha`: `CellType`, `Spatial` and/or `ctSVG`.
-#' Use this to change the decision rule without refitting.
-#'
-#' @param x A [SIGNAL-class] object after [SIGNAL_test()], or a data frame
-#'   with columns `p_overall`, `p_celltype`, `p_spatial` and `p_ctSVG`.
-#' @param alpha Significance level.
-#' @param adjust Multiple testing correction for the overall test, any method
-#'   accepted by [stats::p.adjust()].
-#' @return The object (or data frame) with columns `padj_overall`,
-#'   `significant`, `celltype_effect`, `spatial_effect`, `ctSVG_effect` and
-#'   `category` added to the result. `category` is `"Not significant"`, a
-#'   combination such as `"Spatial+ctSVG"`, or `"Unclassified"` when the
-#'   overall test is significant but no single effect is.
-#' @export
-SIGNAL_classify <- function(x, alpha = 0.05, adjust = "BH") {
-  is_obj <- methods::is(x, "SIGNAL")
-  res <- if (is_obj) x@result else x
-  if (nrow(res) == 0) stop("Run SIGNAL_test() first.")
-  res$padj_overall <- stats::p.adjust(res$p_overall, method = adjust)
-  sig <- !is.na(res$padj_overall) & res$padj_overall < alpha
-  below <- function(p) sig & !is.na(p) & p < alpha
-  res$significant <- sig
-  res$celltype_effect <- below(res$p_celltype)
-  res$spatial_effect <- below(res$p_spatial)
-  res$ctSVG_effect <- below(res$p_ctSVG)
-
-  flags <- cbind(CellType = res$celltype_effect, Spatial = res$spatial_effect,
-                 ctSVG = res$ctSVG_effect)
-  label <- apply(flags, 1, function(f) paste(colnames(flags)[f], collapse = "+"))
-  label[sig & label == ""] <- "Unclassified"
-  label[!sig] <- "Not significant"
-  res$category <- label
-
-  if (!is_obj) return(res)
-  x@result <- res
-  x@params$alpha <- alpha
-  x@params$adjust <- adjust
-  x
+  object
 }
 
 #' Find the cell types behind each ctSVG
@@ -366,27 +322,21 @@ SIGNAL_classify <- function(x, alpha = 0.05, adjust = "BH") {
 #' and only the interaction component is tested. A small p-value means the
 #' gene has a spatial pattern specific to cell type `c`.
 #'
-#' @param object A [SIGNAL-class] object after [SIGNAL_kernel()] (and usually
-#'   [SIGNAL_test()]).
-#' @param genes Genes to test. Defaults to the genes with a significant ctSVG
-#'   effect from [SIGNAL_test()], or all genes if the test has not been run.
+#' @param object A [SIGNAL-class] object after [SIGNAL_kernel()].
+#' @param genes Genes to test, usually those with a small ctSVG p-value from
+#'   [SIGNAL_test()]. Defaults to all genes.
 #' @inheritParams SIGNAL_test
 #' @return The object with `celltype_result`, a genes x cell-types matrix of
 #'   Cauchy-combined p-values, filled in.
 #' @export
 SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepoint", "liu", "davies_liu"),
-                            ncores = 1, parallel = c("genes", "kernels"), verbose = TRUE) {
+                            ncores = NULL, parallel = c("genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
+  if (is.null(ncores)) ncores <- .default_cores()
   cores <- .split_cores(ncores, parallel)
-  if (is.null(genes)) {
-    genes <- if (nrow(object@result) > 0) {
-      object@result$gene[object@result$ctSVG_effect]
-    } else {
-      rownames(Y)
-    }
-  }
+  if (is.null(genes)) genes <- rownames(Y)
   missing_genes <- setdiff(genes, rownames(Y))
   if (length(missing_genes) > 0) {
     stop("Genes not found after preprocessing: ",
@@ -401,10 +351,9 @@ SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepo
     for (c in seq_len(ncol(X))) {
       if (verbose) message("Cell type ", colnames(X)[c])
       K_c <- tcrossprod(X[, c]) / ncol(X)
-      per_kernel <- .map_kernels(object@spatial_kernels, cores$kernels, FALSE, function(Ks) {
-        .signal_engine(Yg, .signal_kernels(object@celltype_kernel, Ks, K_c), 3, method,
-                       ncores = cores$genes)[, 2]
-      })
+      job <- .kernel_job(Yg, object@celltype_kernel, 3, method, ncores = cores$genes,
+                         K_interaction = K_c, column = 2)
+      per_kernel <- .map_kernels(object@spatial_kernels, cores$kernels, FALSE, job)
       out[, c] <- combine_pvalues(do.call(cbind, per_kernel))
     }
   }
@@ -426,9 +375,8 @@ SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepo
 #' @examples
 #' data(SIGNAL_example)
 #' obj <- SIGNAL(SIGNAL_example$counts, SIGNAL_example$location,
-#'               SIGNAL_example$celltype, seed = 1)
+#'               SIGNAL_example$celltype, seed = 1, ncores = 2)
 #' obj
-#' summary(obj)
 #' head(obj@result)
 #' @export
 SIGNAL <- function(counts, location, celltype, kernels = NULL,
@@ -437,8 +385,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                    filter = c("min_cells", "celina"), min_cells = 10,
                    percentage_cell = 0.1, min_total_counts = 10,
                    transform = c("impute", "rank"), n_imp = 10,
-                   alpha = 0.05, adjust = "BH",
-                   method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1,
+                   method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
                    parallel = c("genes", "kernels"), seed = NULL,
                    project = "SIGNAL", verbose = TRUE) {
   obj <- createSIGNALobject(counts, location, celltype, project = project)
@@ -450,7 +397,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
   obj <- SIGNAL_kernel(obj, kernels = kernels, approximation = approximation,
                        celltype_distance = celltype_distance,
                        max_cells = max_cells, verbose = verbose)
-  SIGNAL_test(obj, alpha = alpha, adjust = adjust, method = method,
+  SIGNAL_test(obj, method = method,
               ncores = ncores, parallel = parallel, verbose = verbose)
 }
 
@@ -465,18 +412,34 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
   if (parallel == "kernels") list(kernels = ncores, genes = 1) else list(kernels = 1, genes = ncores)
 }
 
+# All available cores: the Slurm allocation if set, otherwise the machine's
+# cores; 2 under R CMD check (_R_CHECK_LIMIT_CORES_).
+.default_cores <- function() {
+  if (!tolower(Sys.getenv("_R_CHECK_LIMIT_CORES_", "false")) %in% c("", "false")) return(2L)
+  slurm <- suppressWarnings(as.integer(Sys.getenv("SLURM_CPUS_PER_TASK")))
+  if (!is.na(slurm) && slurm > 0) return(slurm)
+  max(1L, parallel::detectCores(), na.rm = TRUE)
+}
+
+# P-values for one spatial kernel.
+.kernel_job <- function(Y, K_celltype, test_index, method, ncores = 1, progress = FALSE,
+                        K_interaction = NULL, column = NULL) {
+  force(Y); force(K_celltype)
+  function(Ks) {
+    K_int <- if (is.null(K_interaction)) K_celltype else K_interaction
+    P <- .signal_engine(Y, .signal_kernels(K_celltype, Ks, K_int), test_index, method,
+                        ncores = ncores, progress = progress)
+    if (is.null(column)) P else P[, column]
+  }
+}
+
 .map_kernels <- function(kernels, ncores, verbose, FUN) {
-  run <- function(i) {
+  if (ncores > 1) {
+    if (verbose) message("Spatial kernels 1-", length(kernels), " on ", ncores, " workers")
+    return(.par_lapply(kernels, FUN, ncores, progress = verbose, preschedule = FALSE))
+  }
+  lapply(seq_along(kernels), function(i) {
     if (verbose) message("Spatial kernel ", i, "/", length(kernels), ": ", names(kernels)[i])
     FUN(kernels[[i]])
-  }
-  if (ncores > 1 && .Platform$OS.type != "windows") {
-    res <- parallel::mclapply(seq_along(kernels), run, mc.cores = ncores,
-                              mc.preschedule = FALSE)
-    failed <- vapply(res, inherits, logical(1), what = "try-error")
-    if (any(failed)) stop("Kernel computation failed: ", res[[which(failed)[1]]])
-    res
-  } else {
-    lapply(seq_along(kernels), run)
-  }
+  })
 }

@@ -14,7 +14,7 @@ if (!require("devtools", quietly = TRUE)){
 devtools::install_github("TingtHou/SIGNAL", build_vignettes = TRUE)
 ```
 
-SIGNAL depends only on `CompQuadForm`, `ggplot2` and packages that ship with R (`mgcv`, `methods`, `parallel`, `stats`, `utils`). It does not need compilation.
+SIGNAL depends only on `CompQuadForm`, `ggplot2`, `pbmcapply` and packages that ship with R (`mgcv`, `methods`, `parallel`, `stats`, `utils`). It does not need compilation.
 
 ## Detect and classify spatially variable genes with SIGNAL
 The best vignette for getting started with SIGNAL is the [Tutorial](https://tingthou.github.io/SIGNAL/tutorial.html). After installation, you can also open it in R with `vignette("SIGNAL")`.
@@ -29,10 +29,11 @@ obj <- createSIGNALobject(counts   = SIGNAL_example$counts,    # genes x cells
 obj <- SIGNAL_preprocess(obj, seed = 1)  # filter genes, rank-based normal transform
 obj <- SIGNAL_kernel(obj)                 # cell-type kernel + 11 spatial kernels
 obj <- SIGNAL_test(obj)                   # overall, cell-type, spatial and ctSVG tests
-obj <- SIGNAL_celltype(obj)               # which cell types carry each ctSVG
 
-summary(obj)              # number of genes in each category
-head(obj@result)          # per-gene p-values and classification
-obj@celltype_result       # ctSVG genes x cell types p-values
+head(obj@result)          # genes x p-values: p_overall, p_celltype, p_spatial, p_ctSVG
+
+ctsvg <- rownames(obj@result)[obj@result$p_ctSVG < 0.05]
+obj <- SIGNAL_celltype(obj, genes = ctsvg)  # which cell types carry each ctSVG
+obj@celltype_result       # genes x cell types p-values
 SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 ```

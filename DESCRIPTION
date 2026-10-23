@@ -28,6 +28,7 @@ Imports:
     methods,
     mgcv,
     parallel,
+    pbmcapply,
     stats,
     utils
 Suggests:

@@ -18,10 +18,8 @@ SIGNAL(
   min_total_counts = 10,
   transform = c("impute", "rank"),
   n_imp = 10,
-  alpha = 0.05,
-  adjust = "BH",
   method = c("davies", "saddlepoint", "liu", "davies_liu"),
-  ncores = 1,
+  ncores = NULL,
   parallel = c("genes", "kernels"),
   seed = NULL,
   project = "SIGNAL",
@@ -79,8 +77,6 @@ locations and cell types.
 
 \item{n_imp}{Number of zero imputations averaged when \code{transform = "impute"}.}
 
-\item{alpha, adjust}{Passed to \code{\link[=SIGNAL_classify]{SIGNAL_classify()}}.}
-
 \item{method}{How tail probabilities are computed.
 \itemize{
 \item \code{"davies"} (default): Davies' algorithm on the per-gene eigenvalues for
@@ -102,8 +98,15 @@ analyses. Davies for the overall test and Liu for the cell-type,
 spatial and ctSVG tests.
 }}
 
-\item{ncores}{Number of cores (forked workers; on Windows only 1 core is
-used). How they are used is set by \code{parallel}.}
+\item{ncores}{Number of cores. Defaults to all available cores: the
+Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
+\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). The workers are
+forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}). Windows
+cannot fork, so there the computation runs on one core. How the cores are
+used is set by \code{parallel}. The number of BLAS threads is left to the
+system: with a multithreaded BLAS (e.g. OpenBLAS), set
+\code{OPENBLAS_NUM_THREADS=1} before starting R so that the workers do not
+compete for cores.}
 
 \item{parallel}{How the cores are used:
 \itemize{
@@ -115,10 +118,7 @@ workers stay busy for any number of kernels.
 holds about 25 n x n matrices, so memory grows with \code{ncores}, and at
 most one core per kernel is used. Can be faster with \code{"liu"} or
 \code{"davies_liu"} and few genes, whose per-kernel set-up is costly.
-}
-
-With an optimised multithreaded BLAS, set its number of threads so that
-threads x \code{ncores} does not exceed the number of cores.}
+}}
 
 \item{seed}{Optional random seed, used when \code{transform = "impute"}.}
 
@@ -136,8 +136,7 @@ Convenience wrapper for \code{\link[=createSIGNALobject]{createSIGNALobject()}},
 \examples{
 data(SIGNAL_example)
 obj <- SIGNAL(SIGNAL_example$counts, SIGNAL_example$location,
-              SIGNAL_example$celltype, seed = 1)
+              SIGNAL_example$celltype, seed = 1, ncores = 2)
 obj
-summary(obj)
 head(obj@result)
 }

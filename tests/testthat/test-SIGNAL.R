@@ -1,24 +1,22 @@
-test_that("SIGNAL detects and classifies the example genes", {
+test_that("SIGNAL returns a genes x p-values table that detects the example genes", {
   data(SIGNAL_example, package = "SIGNAL", envir = environment())
   obj <- SIGNAL(SIGNAL_example$counts, SIGNAL_example$location,
                 SIGNAL_example$celltype, seed = 1, verbose = FALSE)
   expect_s4_class(obj, "SIGNAL")
   r <- obj@result
   expect_equal(nrow(r), 70)
-  expect_true(all(c("p_overall", "p_celltype", "p_spatial", "p_ctSVG",
-                    "padj_overall", "category") %in% names(r)))
-  expect_true(all(r$p_overall >= 0 & r$p_overall <= 1))
+  expect_named(r, c("p_overall", "p_celltype", "p_spatial", "p_ctSVG"))
+  expect_true(all(as.matrix(r) >= 0 & as.matrix(r) <= 1))
   expect_equal(dim(obj@pvalues_by_kernel$ctSVG), c(70, 11))
 
-  type <- SIGNAL_example$gene_type[r$gene]
-  expect_gt(mean(r$significant[type != "null"]), 0.8)
-  expect_lt(mean(r$significant[type == "null"]), 0.2)
-  expect_gt(mean(r$celltype_effect[type == "celltype"]), 0.8)
-  expect_gt(mean(r$spatial_effect[type == "spatial"]), 0.8)
-  expect_gt(mean(r$ctSVG_effect[type == "ctSVG"]), 0.6)
+  type <- SIGNAL_example$gene_type[rownames(r)]
+  expect_gt(mean(r$p_overall[type != "null"] < 0.05), 0.8)
+  expect_lt(mean(r$p_overall[type == "null"] < 0.05), 0.2)
+  expect_gt(mean(r$p_celltype[type == "celltype"] < 0.05), 0.8)
+  expect_gt(mean(r$p_spatial[type == "spatial"] < 0.05), 0.8)
+  expect_gt(mean(r$p_ctSVG[type == "ctSVG"] < 0.05), 0.6)
 
   expect_output(show(obj), "SIGNAL object")
-  expect_s3_class(summary(obj), "table")
 })
 
 test_that("step-by-step workflow equals the wrapper and is reproducible", {
@@ -32,13 +30,6 @@ test_that("step-by-step workflow equals the wrapper and is reproducible", {
                  verbose = FALSE)
   expect_identical(obj@result, wrap@result)
   expect_equal(ncol(obj@pvalues_by_kernel$overall), 2)
-})
-
-test_that("SIGNAL_classify applies the overall-then-component rule", {
-  df <- data.frame(p_overall = c(1e-6, 1e-6, 0.5), p_celltype = c(0.01, 0.5, 0.01),
-                   p_spatial = c(0.01, 0.5, 0.5), p_ctSVG = c(0.5, 0.5, 0.01))
-  out <- SIGNAL_classify(df)
-  expect_equal(out$category, c("CellType+Spatial", "Unclassified", "Not significant"))
 })
 
 test_that("SIGNAL_celltype returns a genes x cell types matrix", {

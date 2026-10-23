@@ -174,24 +174,37 @@
 # Run the overall test and the component tests in `test_index` for all genes
 # (rows of Y) with one kernel list (last kernel = identity).
 # Returns a G x (1 + length(test_index)) matrix of p-values.
-# The gene-independent part (.signal_setup) is computed once; with ncores > 1
-# the genes are then split over forked workers that share it (not on Windows).
+# The gene-independent part (.signal_setup) is computed once; the genes are
+# then split over ncores forked workers that share it (one gene per task,
+# with a pbmclapply progress bar if `progress`). Windows cannot fork, so
+# there the genes run one after another.
 .signal_engine <- function(Y, Klist, test_index = 1:3,
                            method = c("davies", "saddlepoint", "liu", "davies_liu", "eigen"),
-                           ncores = 1) {
+                           ncores = 1, progress = FALSE) {
   method <- match.arg(method)
   s <- .signal_setup(Klist, test_index, method)
   if (is.null(s)) return(matrix(NA_real_, nrow(Y), 1 + length(test_index)))
   G <- nrow(Y)
-  if (ncores > 1 && G > 1 && .Platform$OS.type != "windows") {
-    chunks <- parallel::splitIndices(G, min(ncores, G))
-    res <- parallel::mclapply(chunks, function(i) .signal_genes(Y[i, , drop = FALSE], s, method),
-                              mc.cores = ncores, mc.preschedule = FALSE)
-    failed <- vapply(res, inherits, logical(1), what = "try-error")
-    if (any(failed)) stop("Gene computation failed: ", res[[which(failed)[1]]])
-    return(do.call(rbind, res))
+  if (ncores <= 1 || G <= 1) return(.signal_genes(Y, s, method))
+  res <- .par_lapply(seq_len(G), function(g) .signal_genes(Y[g, , drop = FALSE], s, method),
+                     ncores, progress)
+  do.call(rbind, res)
+}
+
+# lapply over forked workers: pbmclapply with a progress bar, or mclapply
+# without one. Windows cannot fork, so there it runs serially (pbmclapply
+# still shows the bar).
+.par_lapply <- function(X, FUN, ncores, progress = FALSE, preschedule = TRUE) {
+  if (.Platform$OS.type == "windows") ncores <- 1
+  res <- if (progress) {
+    pbmcapply::pbmclapply(X, FUN, mc.cores = ncores, mc.preschedule = preschedule,
+                          ignore.interactive = TRUE)
+  } else {
+    parallel::mclapply(X, FUN, mc.cores = ncores, mc.preschedule = preschedule)
   }
-  .signal_genes(Y, s, method)
+  failed <- vapply(res, inherits, logical(1), what = "try-error")
+  if (any(failed)) stop("Parallel computation failed: ", res[[which(failed)[1]]])
+  res
 }
 
 # Gene-independent quantities for one kernel list: MINQUE(0) weights, the

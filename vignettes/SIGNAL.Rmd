@@ -99,7 +99,7 @@ names(obj@spatial_kernels)
 To use other spatial kernels, pass a list of n x n matrices:
 `SIGNAL_kernel(obj, kernels = my_kernels)`.
 
-## Step 4: test and classify genes
+## Step 4: test genes
 
 For each gene and each spatial kernel, SIGNAL fits
 
@@ -118,39 +118,28 @@ Liu's moment-matching approximation instead, and `method = "davies_liu"` (the
 original real-data analysis code) uses Davies for the overall test and Liu for
 the other three.
 
+The result is a table with one row per gene and the four p-values, not
+adjusted for multiple testing:
+
 ```{r}
-obj <- SIGNAL_test(obj, alpha = 0.05, adjust = "BH")
+obj <- SIGNAL_test(obj, ncores = 2)
 obj
 head(obj@result)
 ```
 
-Classification works in two steps. A gene is significant if its BH-adjusted
-overall p-value is below `alpha`. Each significant gene is then labelled with
-every effect whose own p-value is below `alpha`.
+Compare with the true gene types: the share of genes of each type with
+p < 0.05 in each test.
 
 ```{r}
-summary(obj)
+type <- SIGNAL_example$gene_type[rownames(obj@result)]
+round(apply(obj@result < 0.05, 2, function(x) tapply(x, type, mean)), 2)
 ```
 
-Compare with the true gene types:
-
-```{r}
-table(truth = SIGNAL_example$gene_type[obj@result$gene],
-      SIGNAL = obj@result$category)
-```
-
-All null genes are not significant. Every cell-type gene is labelled
-`CellType` and every spatial gene `Spatial`. The ctSVGs are flagged `ctSVG`,
-and most are also labelled `CellType`. That is expected: expression that is
-higher in the hotspot for CT1 only also makes CT1's average expression higher
-than the other cell types'.
-
-To change the decision rule without refitting, call `SIGNAL_classify()`:
-
-```{r}
-obj_strict <- SIGNAL_classify(obj, alpha = 0.01, adjust = "bonferroni")
-summary(obj_strict)
-```
+Null genes are rarely detected. Cell-type genes are detected by the cell-type
+test and spatial genes by the spatial test. The ctSVGs are detected by the
+ctSVG test, and most also by the cell-type test. That is expected: expression
+that is higher in the hotspot for CT1 only also makes CT1's average expression
+higher than the other cell types'.
 
 ## Visualise genes
 
@@ -168,11 +157,12 @@ hotspot only for CT1.
 ## Step 5: find the cell types behind each ctSVG
 
 `SIGNAL_celltype()` tests each ctSVG once per cell type, using an interaction
-kernel built from that cell type alone. By default it tests the genes with a
-significant ctSVG effect from `SIGNAL_test()`.
+kernel built from that cell type alone. Here it tests the genes with a ctSVG
+p-value below 0.05:
 
 ```{r}
-obj <- SIGNAL_celltype(obj)
+ctsvg <- rownames(obj@result)[obj@result$p_ctSVG < 0.05]
+obj <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2)
 signif(obj@celltype_result, 2)
 ```
 
@@ -207,10 +197,15 @@ obj <- SIGNAL(counts, location, celltype)
   cell types and spatial domains overlap strongly.
 * Memory holds the 11 spatial kernels plus working n x n matrices, a few GB at
   n = 5,000.
-* On Linux or macOS, `SIGNAL_test(obj, ncores = k)` splits the genes over `k`
-  workers, which share each kernel's set-up, so each worker adds only a few
-  n x n matrices of memory. `parallel = "kernels"` processes `k` spatial
-  kernels in parallel instead (more memory per worker).
+* `SIGNAL_test()` splits the genes over all available cores by default
+  (`ncores`; on Slurm the cores of the allocation), with a progress bar for
+  each spatial kernel. The workers are forked and share each kernel's set-up,
+  so each adds only a few n x n matrices of memory. Windows cannot fork, so
+  there the genes run on one core; use Linux (e.g. WSL or a cluster) for
+  parallel runs. With a multithreaded BLAS such as OpenBLAS, set
+  `OPENBLAS_NUM_THREADS=1` before starting R so that the workers do not
+  compete for cores. `parallel = "kernels"` processes the spatial kernels in
+  parallel instead (more memory per worker).
 * R linked to an optimised BLAS (OpenBLAS, Intel MKL, Apple Accelerate) speeds
   up the matrix products considerably.
 
