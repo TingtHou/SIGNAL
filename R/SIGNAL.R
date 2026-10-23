@@ -258,9 +258,20 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   * `"davies_liu"`: as in the original SIGNAL code used for the real-data
 #'     analyses. Davies for the overall test and Liu for the cell-type,
 #'     spatial and ctSVG tests.
-#' @param ncores Number of cores used to process spatial kernels in parallel
-#'   (forking; on Windows only 1 core is used). Each worker holds about 25
-#'   n x n matrices.
+#' @param ncores Number of cores (forked workers; on Windows only 1 core is
+#'   used). How they are used is set by `parallel`.
+#' @param parallel How the cores are used:
+#'   * `"genes"` (default): kernels are processed one at a time and the genes
+#'     are split over the workers. The kernel set-up is computed once and
+#'     shared, so each worker only adds about 3 n x n matrices, and all
+#'     workers stay busy for any number of kernels.
+#'   * `"kernels"`: spatial kernels are processed in parallel. Each worker
+#'     holds about 25 n x n matrices, so memory grows with `ncores`, and at
+#'     most one core per kernel is used. Can be faster with `"liu"` or
+#'     `"davies_liu"` and few genes, whose per-kernel set-up is costly.
+#'
+#'   With an optimised multithreaded BLAS, set its number of threads so that
+#'   threads x `ncores` does not exceed the number of cores.
 #' @param verbose Print progress messages.
 #' @return The object with `result` and `pvalues_by_kernel` filled in.
 #'   `result` has one row per gene with columns `gene`, `p_overall`,
@@ -268,15 +279,17 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   described in [SIGNAL_classify()].
 #' @export
 SIGNAL_test <- function(object, alpha = 0.05, adjust = "BH",
-                        method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1, verbose = TRUE) {
+                        method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1,
+                        parallel = c("genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
   kernels <- object@spatial_kernels
   K_celltype <- object@celltype_kernel
+  cores <- .split_cores(ncores, parallel)
 
-  per_kernel <- .map_kernels(kernels, ncores, verbose, function(Ks) {
-    .signal_engine(Y, .signal_kernels(K_celltype, Ks), 1:3, method)
+  per_kernel <- .map_kernels(kernels, cores$kernels, verbose, function(Ks) {
+    .signal_engine(Y, .signal_kernels(K_celltype, Ks), 1:3, method, ncores = cores$genes)
   })
 
   tests <- c("overall", "celltype", "spatial", "ctSVG")
@@ -362,10 +375,11 @@ SIGNAL_classify <- function(x, alpha = 0.05, adjust = "BH") {
 #'   Cauchy-combined p-values, filled in.
 #' @export
 SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepoint", "liu", "davies_liu"),
-                            ncores = 1, verbose = TRUE) {
+                            ncores = 1, parallel = c("genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
   .check_ready(object)
   Y <- object@gene_expression
+  cores <- .split_cores(ncores, parallel)
   if (is.null(genes)) {
     genes <- if (nrow(object@result) > 0) {
       object@result$gene[object@result$ctSVG_effect]
@@ -387,8 +401,9 @@ SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepo
     for (c in seq_len(ncol(X))) {
       if (verbose) message("Cell type ", colnames(X)[c])
       K_c <- tcrossprod(X[, c]) / ncol(X)
-      per_kernel <- .map_kernels(object@spatial_kernels, ncores, FALSE, function(Ks) {
-        .signal_engine(Yg, .signal_kernels(object@celltype_kernel, Ks, K_c), 3, method)[, 2]
+      per_kernel <- .map_kernels(object@spatial_kernels, cores$kernels, FALSE, function(Ks) {
+        .signal_engine(Yg, .signal_kernels(object@celltype_kernel, Ks, K_c), 3, method,
+                       ncores = cores$genes)[, 2]
       })
       out[, c] <- combine_pvalues(do.call(cbind, per_kernel))
     }
@@ -423,7 +438,8 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                    percentage_cell = 0.1, min_total_counts = 10,
                    transform = c("impute", "rank"), n_imp = 10,
                    alpha = 0.05, adjust = "BH",
-                   method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1, seed = NULL,
+                   method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = 1,
+                   parallel = c("genes", "kernels"), seed = NULL,
                    project = "SIGNAL", verbose = TRUE) {
   obj <- createSIGNALobject(counts, location, celltype, project = project)
   obj <- SIGNAL_preprocess(obj, filter = filter, min_cells = min_cells,
@@ -435,12 +451,18 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                        celltype_distance = celltype_distance,
                        max_cells = max_cells, verbose = verbose)
   SIGNAL_test(obj, alpha = alpha, adjust = adjust, method = method,
-              ncores = ncores, verbose = verbose)
+              ncores = ncores, parallel = parallel, verbose = verbose)
 }
 
 .check_ready <- function(object) {
   if (length(object@gene_expression) == 0) stop("Run SIGNAL_preprocess() first.")
   if (length(object@spatial_kernels) == 0) stop("Run SIGNAL_kernel() first.")
+}
+
+# Cores for the kernel level and the gene level, from `ncores` and `parallel`.
+.split_cores <- function(ncores, parallel = c("genes", "kernels")) {
+  parallel <- match.arg(parallel)
+  if (parallel == "kernels") list(kernels = ncores, genes = 1) else list(kernels = 1, genes = ncores)
 }
 
 .map_kernels <- function(kernels, ncores, verbose, FUN) {

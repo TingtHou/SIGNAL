@@ -205,3 +205,23 @@ test_that("SIGNAL_kernel switches to one kernel above max_cells", {
   res <- SIGNAL_test(one, verbose = FALSE)@result
   expect_true(all(res$p_overall >= 0 & res$p_overall <= 1))
 })
+
+test_that("gene-level split gives the same p-values as one pass", {
+  pb <- small_problem()
+  Klist <- SIGNAL:::.signal_kernels(pb$K_ct, pb$K_sp[[2]])
+  for (method in c("davies", "saddlepoint", "liu", "davies_liu")) {
+    full <- SIGNAL:::.signal_engine(pb$Y, Klist, 1:3, method = method)
+    s <- SIGNAL:::.signal_setup(Klist, 1:3, method)
+    chunks <- parallel::splitIndices(nrow(pb$Y), 3)
+    split <- do.call(rbind, lapply(chunks, function(i) {
+      SIGNAL:::.signal_genes(pb$Y[i, , drop = FALSE], s, method)
+    }))
+    expect_equal(split, full)
+    expect_equal(SIGNAL:::.signal_engine(pb$Y, Klist, 1:3, method = method, ncores = 2), full)
+  }
+})
+
+test_that("parallel option splits cores between kernels and genes", {
+  expect_equal(SIGNAL:::.split_cores(4), list(kernels = 1, genes = 4))
+  expect_equal(SIGNAL:::.split_cores(4, "kernels"), list(kernels = 4, genes = 1))
+})

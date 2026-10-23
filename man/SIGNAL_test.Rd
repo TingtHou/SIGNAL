@@ -10,6 +10,7 @@ SIGNAL_test(
   adjust = "BH",
   method = c("davies", "saddlepoint", "liu", "davies_liu"),
   ncores = 1,
+  parallel = c("genes", "kernels"),
   verbose = TRUE
 )
 }
@@ -40,9 +41,23 @@ analyses. Davies for the overall test and Liu for the cell-type,
 spatial and ctSVG tests.
 }}
 
-\item{ncores}{Number of cores used to process spatial kernels in parallel
-(forking; on Windows only 1 core is used). Each worker holds about 25
-n x n matrices.}
+\item{ncores}{Number of cores (forked workers; on Windows only 1 core is
+used). How they are used is set by \code{parallel}.}
+
+\item{parallel}{How the cores are used:
+\itemize{
+\item \code{"genes"} (default): kernels are processed one at a time and the genes
+are split over the workers. The kernel set-up is computed once and
+shared, so each worker only adds about 3 n x n matrices, and all
+workers stay busy for any number of kernels.
+\item \code{"kernels"}: spatial kernels are processed in parallel. Each worker
+holds about 25 n x n matrices, so memory grows with \code{ncores}, and at
+most one core per kernel is used. Can be faster with \code{"liu"} or
+\code{"davies_liu"} and few genes, whose per-kernel set-up is costly.
+}
+
+With an optimised multithreaded BLAS, set its number of threads so that
+threads x \code{ncores} does not exceed the number of cores.}
 
 \item{verbose}{Print progress messages.}
 }

@@ -207,8 +207,10 @@ obj <- SIGNAL(counts, location, celltype)
   cell types and spatial domains overlap strongly.
 * Memory holds the 11 spatial kernels plus working n x n matrices, a few GB at
   n = 5,000.
-* On Linux or macOS, `SIGNAL_test(obj, ncores = k)` processes `k` spatial
-  kernels in parallel. Each worker needs its own working memory.
+* On Linux or macOS, `SIGNAL_test(obj, ncores = k)` splits the genes over `k`
+  workers, which share each kernel's set-up, so each worker adds only a few
+  n x n matrices of memory. `parallel = "kernels"` processes `k` spatial
+  kernels in parallel instead (more memory per worker).
 * R linked to an optimised BLAS (OpenBLAS, Intel MKL, Apple Accelerate) speeds
   up the matrix products considerably.
 

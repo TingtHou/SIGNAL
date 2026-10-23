@@ -174,18 +174,30 @@
 # Run the overall test and the component tests in `test_index` for all genes
 # (rows of Y) with one kernel list (last kernel = identity).
 # Returns a G x (1 + length(test_index)) matrix of p-values.
+# The gene-independent part (.signal_setup) is computed once; with ncores > 1
+# the genes are then split over forked workers that share it (not on Windows).
 .signal_engine <- function(Y, Klist, test_index = 1:3,
-                           method = c("davies", "saddlepoint", "liu", "davies_liu", "eigen")) {
+                           method = c("davies", "saddlepoint", "liu", "davies_liu", "eigen"),
+                           ncores = 1) {
   method <- match.arg(method)
-  # Tail probability used with per-gene eigenvalues: overall test, component tests
-  overall_tail <- switch(method, davies = , davies_liu = .davies_eigen,
-                         saddlepoint = .saddle_eigen, .liu_eigen)
-  component_tail <- switch(method, davies = .davies_eigen,
-                           saddlepoint = .saddle_eigen, .liu_eigen)
-  m <- length(Klist)
+  s <- .signal_setup(Klist, test_index, method)
+  if (is.null(s)) return(matrix(NA_real_, nrow(Y), 1 + length(test_index)))
   G <- nrow(Y)
-  out <- matrix(NA_real_, G, 1 + length(test_index))
+  if (ncores > 1 && G > 1 && .Platform$OS.type != "windows") {
+    chunks <- parallel::splitIndices(G, min(ncores, G))
+    res <- parallel::mclapply(chunks, function(i) .signal_genes(Y[i, , drop = FALSE], s, method),
+                              mc.cores = ncores, mc.preschedule = FALSE)
+    failed <- vapply(res, inherits, logical(1), what = "try-error")
+    if (any(failed)) stop("Gene computation failed: ", res[[which(failed)[1]]])
+    return(do.call(rbind, res))
+  }
+  .signal_genes(Y, s, method)
+}
 
+# Gene-independent quantities for one kernel list: MINQUE(0) weights, the
+# quadratic-form matrices and, for Liu's approximation, the trace moments.
+.signal_setup <- function(Klist, test_index, method) {
+  m <- length(Klist)
   C <- matrix(0, m, m)
   for (i in seq_len(m)) for (j in i:m) {
     C[i, j] <- C[j, i] <- sum(Klist[[i]] * Klist[[j]])
@@ -194,35 +206,57 @@
   if (is.null(Cinv) || anyNA(Cinv) || any(diag(Cinv) < 0)) {
     warning("Kernel Gram matrix is singular or not positive definite; ",
             "returning NA for this kernel.", call. = FALSE)
-    return(out)
+    return(NULL)
   }
   Q <- lapply(seq_len(m), function(i) .linear_comb(Klist, Cinv[i, ]))
-  U <- .quad_forms(Y, Klist)
-  tau <- U %*% t(Cinv)
-
   effects <- seq_len(m - 1)
-  r <- rowSums(tau[, effects, drop = FALSE]) / tau[, m]
   B <- Reduce(`+`, Q[effects])
   D <- Q[[m]]
+  components <- lapply(test_index, function(k) {
+    null_set <- setdiff(seq_len(m), k)
+    Cnull_inv <- tryCatch(solve(C[null_set, null_set]), error = function(e) NULL)
+    mo <- if (!is.null(Cnull_inv) && method %in% c("liu", "davies_liu")) {
+      .component_moments(Q[[k]], Klist[null_set])
+    }
+    list(k = k, null_set = null_set, Cnull_inv = Cnull_inv, mo = mo)
+  })
+  list(Klist = Klist, Cinv = Cinv, Q = Q, B = B, D = D, effects = effects,
+       overall_mo = if (method == "liu") .overall_moments(B, D),
+       components = components)
+}
+
+# P-values for the genes in Y given .signal_setup() output.
+.signal_genes <- function(Y, s, method) {
+  # Tail probability used with per-gene eigenvalues: overall test, component tests
+  overall_tail <- switch(method, davies = , davies_liu = .davies_eigen,
+                         saddlepoint = .saddle_eigen, .liu_eigen)
+  component_tail <- switch(method, davies = .davies_eigen,
+                           saddlepoint = .saddle_eigen, .liu_eigen)
+  Klist <- s$Klist
+  m <- length(Klist)
+  G <- nrow(Y)
+  out <- matrix(NA_real_, G, 1 + length(s$components))
+  U <- .quad_forms(Y, Klist)
+  tau <- U %*% t(s$Cinv)
+
+  r <- rowSums(tau[, s$effects, drop = FALSE]) / tau[, m]
   if (method == "liu") {
-    out[, 1] <- .overall_pvalue_moment(r, .overall_moments(B, D))
+    out[, 1] <- .overall_pvalue_moment(r, s$overall_mo)
   } else {
     out[, 1] <- vapply(seq_len(G), function(g) {
-      lambda <- eigen(B - r[g] * D, symmetric = TRUE, only.values = TRUE)$values
+      lambda <- eigen(s$B - r[g] * s$D, symmetric = TRUE, only.values = TRUE)$values
       overall_tail(0, lambda)
     }, numeric(1))
   }
-  rm(B, D)
 
-  for (t in seq_along(test_index)) {
-    k <- test_index[t]
-    null_set <- setdiff(seq_len(m), k)
-    Cnull_inv <- tryCatch(solve(C[null_set, null_set]), error = function(e) NULL)
-    if (is.null(Cnull_inv)) next
-    tau0 <- U[, null_set, drop = FALSE] %*% t(Cnull_inv)
+  for (t in seq_along(s$components)) {
+    cp <- s$components[[t]]
+    if (is.null(cp$Cnull_inv)) next
+    k <- cp$k
+    null_set <- cp$null_set
+    tau0 <- U[, null_set, drop = FALSE] %*% t(cp$Cnull_inv)
     if (method %in% c("liu", "davies_liu")) {
-      mo <- .component_moments(Q[[k]], Klist[null_set])
-      p <- .component_pvalue_moment(tau[, k], tau0, mo)
+      p <- .component_pvalue_moment(tau[, k], tau0, cp$mo)
       if (method == "davies_liu") {
         # Moments equal the power sums of the eigenvalues of Q_k V0 when V0 is
         # positive definite (all eigenvalues real). Otherwise use the real parts
@@ -230,7 +264,7 @@
         for (g in seq_len(G)) {
           V0 <- .linear_comb(Klist[null_set], tau0[g, ])
           if (is.null(tryCatch(chol(V0), error = function(e) NULL))) {
-            lambda <- Re(eigen(Q[[k]] %*% V0, only.values = TRUE)$values)
+            lambda <- Re(eigen(s$Q[[k]] %*% V0, only.values = TRUE)$values)
             p[g] <- .liu_eigen(tau[g, k], lambda)
           }
         }
@@ -239,7 +273,7 @@
     } else {
       out[, t + 1] <- vapply(seq_len(G), function(g) {
         V0 <- .linear_comb(Klist[null_set], tau0[g, ])
-        component_tail(tau[g, k], .product_eigenvalues(Q[[k]], V0))
+        component_tail(tau[g, k], .product_eigenvalues(s$Q[[k]], V0))
       }, numeric(1))
     }
   }
