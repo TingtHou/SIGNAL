@@ -16,7 +16,7 @@ SIGNAL(
   min_cells = 10,
   percentage_cell = 0.1,
   min_total_counts = 10,
-  transform = c("impute", "rank"),
+  transform = c("rank", "impute"),
   n_imp = 10,
   method = c("davies", "saddlepoint", "liu", "davies_liu"),
   ncores = NULL,
@@ -73,7 +73,8 @@ locations and cell types.
 
 \item{percentage_cell, min_total_counts}{Used by \code{filter = "celina"}.}
 
-\item{transform}{\code{"impute"} (default) or \code{"rank"}, see Details.}
+\item{transform}{\code{"rank"} (default) or \code{"impute"} (recommended for sparse data with
+many zeros), see Details.}
 
 \item{n_imp}{Number of zero imputations averaged when \code{transform = "impute"}.}
 

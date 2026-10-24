@@ -44,16 +44,17 @@ createSIGNALobject <- function(counts, location, celltype, project = "SIGNAL") {
 #' low total counts), then converts each remaining gene to normal scores.
 #'
 #' @details
-#' With `transform = "impute"` (default, as in the code used for the
-#' simulation studies) each gene's counts are converted to normal scores
-#' `qnorm((rank(y) - 0.5) / n)` with tied zeros broken at random, and the
-#' scores are averaged over `n_imp` draws ([rank_int_impute()]); set `seed` to
-#' make this reproducible. This keeps the spatial test calibrated when many
-#' counts are zero. With `transform = "rank"` (as in the original SIGNAL code
-#' used for the real-data analyses) tied counts, in particular the zeros, share
-#' their average rank, so the result is deterministic, but the spatial test can
-#' be anti-conservative. Genes whose transformed values are constant are
-#' removed.
+#' With `transform = "rank"` (default) each gene's counts are converted to
+#' normal scores `qnorm((rank(y) - 0.5) / n)`; tied counts share their average
+#' rank, so the result is deterministic.
+#'
+#' **Sparse data with many zeros:** all zero counts of a gene then share one
+#' score, and this large block of tied values can make the spatial test
+#' anti-conservative. For such data use `transform = "impute"`: tied zeros are
+#' broken at random and the scores are averaged over `n_imp` draws
+#' ([rank_int_impute()]); set `seed` to make this reproducible.
+#'
+#' Genes whose transformed values are constant are removed.
 #'
 #' @param object A [SIGNAL-class] object.
 #' @param filter Filtering rule:
@@ -66,7 +67,8 @@ createSIGNALobject <- function(counts, location, celltype, project = "SIGNAL") {
 #'     locations and cell types.
 #' @param min_cells Used by `filter = "min_cells"`.
 #' @param percentage_cell,min_total_counts Used by `filter = "celina"`.
-#' @param transform `"impute"` (default) or `"rank"`, see Details.
+#' @param transform `"rank"` (default) or `"impute"` (recommended for sparse data with
+#'   many zeros), see Details.
 #' @param n_imp Number of zero imputations averaged when `transform = "impute"`.
 #' @param seed Optional random seed, used when `transform = "impute"`.
 #' @param verbose Print progress messages.
@@ -76,7 +78,7 @@ createSIGNALobject <- function(counts, location, celltype, project = "SIGNAL") {
 #' @export
 SIGNAL_preprocess <- function(object, filter = c("min_cells", "celina"),
                               min_cells = 10, percentage_cell = 0.1,
-                              min_total_counts = 10, transform = c("impute", "rank"),
+                              min_total_counts = 10, transform = c("rank", "impute"),
                               n_imp = 10, seed = NULL, verbose = TRUE) {
   filter <- match.arg(filter)
   transform <- match.arg(transform)
@@ -389,7 +391,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                    celltype_distance = c("auto", "hamming", "euclidean"),
                    filter = c("min_cells", "celina"), min_cells = 10,
                    percentage_cell = 0.1, min_total_counts = 10,
-                   transform = c("impute", "rank"), n_imp = 10,
+                   transform = c("rank", "impute"), n_imp = 10,
                    method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
                    parallel = c("auto", "genes", "kernels"), seed = NULL,
                    project = "SIGNAL", verbose = TRUE) {

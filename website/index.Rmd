@@ -1,0 +1,67 @@
+---
+title: "SIGNAL"
+subtitle: "Spatial varIable Gene detectioN And cLassification"
+---
+
+## Overview
+
+SIGNAL is a statistical method to detect spatially variable genes (SVGs) in
+single-cell resolution spatial transcriptomics and to classify each one by the
+source of its spatial variation.
+
+![](figures/SIGNAL_Fig1_overview.svg){width=100%}
+
+For each gene, SIGNAL fits a multi-kernel variance component model,
+
+$$
+\mathbf y \sim N\!\left(\mathbf 0,\;
+\sigma^2_c \mathbf K_{\text{cell type}} +
+\sigma^2_s \mathbf K_{\text{spatial}} +
+\sigma^2_{ct} \mathbf K_{\text{cell type} \times \text{spatial}} +
+\sigma^2_0 \mathbf I\right),
+$$
+
+with a cell-type kernel, a spatial kernel and their interaction. The variance
+components are estimated by MINQUE, and SIGNAL runs
+
+* an **overall test** of $\sigma^2_c = \sigma^2_s = \sigma^2_{ct} = 0$, which
+  detects any spatial or cell-type variation (utSVGs), and
+* three **component tests**, which separate its source:
+  * **cell type** ($\sigma^2_c$): expression differs between cell types (cSVG);
+  * **spatial** ($\sigma^2_s$): expression varies over space for all cell
+    types (sSVG);
+  * **cell-type-specific spatial** ($\sigma^2_{ct}$): the spatial pattern
+    differs between cell types (ctSVG).
+
+The test statistics follow mixtures of chi-square distributions, whose tail
+probabilities are computed with Davies' method. Results are combined over a
+panel of 11 spatial kernels (Gaussian, Matérn and thin-plate spline) with the
+Cauchy combination test. A second-stage test finds the cell types that carry
+each ctSVG pattern.
+
+## What SIGNAL returns
+
+A table with one row per gene and the four p-values (`p_overall`,
+`p_celltype`, `p_spatial`, `p_ctSVG`), and, for selected genes, a
+genes $\times$ cell types table of cell-type-specific p-values.
+
+## Tutorials
+
+| Page | Data | What it shows |
+|---|---|---|
+| [Installation](Installation.html) | | Installing SIGNAL on Linux, macOS, Windows and HPC clusters |
+| [Getting started](tutorial.html) | Simulated example (in the package) | The full workflow, runs in about a minute |
+| [Axolotl brain](Artista.html) | Stereo-seq, 4,410 cells, cell-type labels | Single-cell data, 11 spatial kernels, batches of genes on a cluster |
+| [Mouse hypothalamus](Mouse.html) | MERFISH, 5,520 cells, cell-type labels | Single-cell data, a single Gaussian spatial kernel |
+| [Mouse hippocampus](Alzheimer.html) | STARmap PLUS, 9,244 cells, cell-type proportions | Spot-level data, large data |
+| [Large data](Parallel.html) | | Parallel computing, memory and run time |
+
+The processed real data used in the tutorials can be downloaded from the
+[SIGNAL real data folder](https://drive.google.com/drive/folders/1-j6l-KBT9dR_p2RB2RVb_5q9Ig2GdRn3)
+on Google Drive.
+
+## Citation
+
+Hou T. *et al.* SIGNAL: Spatial varIable Gene detectioN And cLassification.
+
+Source code: <https://github.com/TingtHou/SIGNAL>

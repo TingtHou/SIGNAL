@@ -4,3 +4,5 @@
 .Ruserdata
 *.Rcheck/
 *.tar.gz
+website/*_cache/
+website/*_files/

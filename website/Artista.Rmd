@@ -1,0 +1,117 @@
+---
+title: "Axolotl brain (Stereo-seq)"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", cache = TRUE, fig.width = 8, fig.height = 5.5)
+knitr::opts_knit$set(root.dir = "/mnt/c/Users/tingthou/Desktop/SIGNAL/SingleCell/RealData")
+```
+
+This page analyses single-cell resolution Stereo-seq data of the axolotl brain
+at developmental stage 57 (Wei *et al.*, 2022), with cell-type labels and the
+panel of 11 spatial kernels. To keep the page quick, it runs three genes named
+in the paper; the analysis of all 16,586 genes uses the same code and is best
+split into batches on a cluster (below).
+
+## Data
+
+The processed data used on this page, `artista_data.RData`, can be downloaded
+from the [SIGNAL real data folder](https://drive.google.com/drive/folders/1-j6l-KBT9dR_p2RB2RVb_5q9Ig2GdRn3)
+on Google Drive. The raw data are in the ARTISTA database
+(<https://db.cngb.org/stomics/artista/download/>); we removed mitochondrial
+genes, kept genes with non-zero expression in at least 20 locations and
+locations with non-zero expression for at least 20 genes.
+
+```{r load}
+library(SIGNAL)
+library(Matrix)
+load("artista_data.RData")
+dim(data_use$count_use)
+table(data_use$cluster)
+```
+
+## Step 1: create a SIGNAL object
+
+Three genes from the paper: *AACS*, a cell-type gene; *TCF4*, a spatial gene;
+and *SDC2*, a gene with a cell-type-specific spatial pattern.
+
+```{r create}
+genes <- c("AACS", "TCF4", "SDC2")
+obj <- createSIGNALobject(data_use$count_use[genes, ], data_use$location_coord,
+                          data_use$cluster)
+obj
+```
+
+## Step 2: filter and transform
+
+```{r preprocess}
+obj <- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
+```
+
+## Step 3: build the kernels
+
+Cell-type labels give the Hamming cell-type kernel. With 4,410 cells (fewer
+than 6,000), SIGNAL builds the panel of 11 spatial kernels.
+
+```{r kernel}
+obj <- SIGNAL_kernel(obj)
+names(obj@spatial_kernels)
+```
+
+## Step 4: test the genes
+
+```{r test}
+obj <- SIGNAL_test(obj, ncores = 3, verbose = FALSE)
+signif(obj@result, 3)
+```
+
+```{r classify}
+res <- obj@result
+apply(res[, c("p_celltype", "p_spatial", "p_ctSVG")] < 0.05, 1, function(f)
+  paste(c("CellType", "Spatial", "ctSVG")[f], collapse = "+"))
+```
+
+Values of about 1e-16 are below the accuracy of Davies' method (about 1e-6);
+use `method = "saddlepoint"` to keep their actual size.
+
+## Step 5: visualise the genes
+
+```{r plot-aacs}
+SIGNAL_plotGene(obj, "AACS", by_celltype = TRUE, point_size = 0.5)
+```
+
+```{r plot-tcf4}
+SIGNAL_plotGene(obj, "TCF4", by_celltype = TRUE, point_size = 0.5)
+```
+
+```{r plot-sdc2}
+SIGNAL_plotGene(obj, "SDC2", by_celltype = TRUE, point_size = 0.5)
+```
+
+## Step 6: cell types behind the cell-type-specific pattern
+
+```{r celltype}
+obj <- SIGNAL_celltype(obj, genes = "SDC2", ncores = 3, verbose = FALSE)
+signif(obj@celltype_result, 2)
+```
+
+## All genes: batches on a cluster
+
+The genes are tested independently, so the 16,586 genes can be split over the
+tasks of a Slurm job array, and the result tables combined afterwards:
+
+```{r batches, eval = FALSE}
+part  <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
+genes <- rownames(data_use$count_use)
+batch <- genes[parallel::splitIndices(length(genes), 100)[[part]]]
+obj <- SIGNAL(data_use$count_use[batch, ], data_use$location_coord, data_use$cluster,
+              min_cells = 0, seed = 1)            # ncores = the Slurm allocation
+saveRDS(obj@result, sprintf("artista_part_%03d.rds", part))
+```
+
+```{bash, eval = FALSE}
+sbatch --array=1-100 --cpus-per-task=20 --mem-per-cpu=4G --time=24:00:00 run_artista.sh
+```
+
+With 4,410 cells, each spatial kernel takes about 17 minutes for 160 genes on
+20 cores, so a batch of 160 genes needs about 3 hours and 30 GB of memory.

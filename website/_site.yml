@@ -1,0 +1,37 @@
+name: "SIGNAL"
+output_dir: "../docs"
+navbar:
+  title: "SIGNAL"
+  left:
+    - text: "Home"
+      href: index.html
+    - text: "Installation"
+      href: Installation.html
+    - text: "Getting started"
+      href: tutorial.html
+    - text: "Single cell level"
+      menu:
+        - text: "Axolotl brain (Stereo-seq)"
+          href: Artista.html
+        - text: "Mouse hypothalamus (MERFISH)"
+          href: Mouse.html
+    - text: "Spot level"
+      menu:
+        - text: "Mouse hippocampus (STARmap PLUS)"
+          href: Alzheimer.html
+    - text: "Large data"
+      href: Parallel.html
+    - text: "License"
+      href: license.html
+  right:
+    - icon: fa-github
+      text: "Source code"
+      href: https://github.com/TingtHou/SIGNAL
+output:
+  html_document:
+    theme: cosmo
+    highlight: textmate
+    toc: true
+    toc_float: true
+    include:
+      after_body: footer.html

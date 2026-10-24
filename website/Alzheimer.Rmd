@@ -1,0 +1,109 @@
+---
+title: "Mouse hippocampus (STARmap PLUS)"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", cache = TRUE, fig.width = 8, fig.height = 5.5)
+knitr::opts_knit$set(root.dir = "/mnt/c/Users/tingthou/Desktop/SIGNAL/SingleCell/RealData")
+```
+
+This page analyses spot-level data, where each location has **cell-type
+proportions** instead of a single label: STARmap PLUS data of the hippocampus
+of a 13-month-old Alzheimer's disease mouse model (Zeng *et al.*, 2023). With
+more than 6,000 cells it also shows SIGNAL's settings for large data. To keep
+the page quick, it runs three genes named in the paper; the analysis of all
+genes uses the same code.
+
+## Data
+
+The processed data used on this page, `starmap_plus_data_use.RData` (counts,
+locations and cell-type proportions), can be downloaded from the
+[SIGNAL real data folder](https://drive.google.com/drive/folders/1-j6l-KBT9dR_p2RB2RVb_5q9Ig2GdRn3)
+on Google Drive. The raw data are sample
+`spatial_13months-disease-replicate_1` of study SCP1375 on the Broad Single
+Cell Portal. Each segmented cell is treated as a near-cellular spot, and its
+cell-type composition is estimated by reference-based deconvolution (CARD
+with the DropViz mouse hippocampus reference).
+
+```{r load}
+library(SIGNAL)
+library(Matrix)
+load("starmap_plus_data_use.RData")
+dim(data_use$count_use)
+prop <- as.matrix(data_use$celltype_proportion)
+prop <- prop[, colSums(prop) > 100]       # cell types with enough cells
+dim(prop)
+round(prop[1:3, 1:5], 2)   # first cells and cell types
+```
+
+## Step 1: create a SIGNAL object
+
+Three genes from the paper: *Bin1* and *Apoe*, Alzheimer's disease risk genes,
+and *Atp8a1*.
+
+```{r create}
+genes <- c("Bin1", "Apoe", "Atp8a1")
+obj <- createSIGNALobject(data_use$count_use[genes, ], data_use$location_use, prop)
+obj
+```
+
+## Step 2: filter and transform
+
+```{r preprocess}
+obj <- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
+```
+
+## Step 3: build the kernels
+
+Two of SIGNAL's automatic choices apply:
+
+* **Cell-type kernel:** the cell-type input is a matrix of proportions, so
+  SIGNAL uses a Gaussian kernel on the Euclidean distance between proportion
+  vectors (`celltype_distance = "auto"`).
+* **Spatial kernel:** with more than 6,000 cells, SIGNAL builds one Gaussian
+  kernel instead of 11 (`approximation = "auto"`). Its bandwidth is chosen
+  from the expression of all genes with Silverman's rule; with only three
+  genes in the object, we compute it from the full count matrix and pass it on.
+
+```{r kernel}
+bw <- select_bandwidth(data_use$count_use)
+bw
+obj <- SIGNAL_kernel(obj, bandwidth = bw)
+obj@params$kernel[c("celltype_distance", "approximation")]
+```
+
+## Step 4: test the genes
+
+Each n × n matrix takes 0.68 GB at 9,244 cells; the main process holds about
+20 of them and each parallel worker about 7 more. This page ran on a computer
+with 24 GB of memory, so it uses one worker:
+
+```{r test}
+obj <- SIGNAL_test(obj, ncores = 1, verbose = FALSE)
+signif(obj@result, 3)
+```
+
+```{r classify}
+res <- obj@result
+apply(res[, c("p_celltype", "p_spatial", "p_ctSVG")] < 0.05, 1, function(f)
+  paste(c("CellType", "Spatial", "ctSVG")[f], collapse = "+"))
+```
+
+Memory needed with more workers:
+
+| Workers (`ncores`) | Memory needed |
+|---|---|
+| 1 | about 17 GB |
+| 8 | about 50 GB |
+| 12 | about 70 GB |
+| 20 | about 110 GB |
+
+## Step 5: visualise the genes
+
+```{r plot-apoe}
+SIGNAL_plotGene(obj, "Apoe", point_size = 0.4)
+```
+
+```{r plot-atp8a1}
+SIGNAL_plotGene(obj, "Atp8a1", point_size = 0.4)
+```

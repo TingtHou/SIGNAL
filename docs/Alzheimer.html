@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Mouse hippocampus (STARmap PLUS)</title>
+
+<script src="site_libs/header-attrs-2.30/header-attrs.js"></script>
+<script src="site_libs/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<link href="site_libs/font-awesome-6.5.2/css/all.min.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">SIGNAL</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="Installation.html">Installation</a>
+</li>
+<li>
+  <a href="tutorial.html">Getting started</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Single cell level
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="Artista.html">Axolotl brain (Stereo-seq)</a>
+    </li>
+    <li>
+      <a href="Mouse.html">Mouse hypothalamus (MERFISH)</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Spot level
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="Alzheimer.html">Mouse hippocampus (STARmap PLUS)</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="Parallel.html">Large data</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li>
+  <a href="https://github.com/TingtHou/SIGNAL">
+    <span class="fa fa-github"></span>
+     
+    Source code
+  </a>
+</li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Mouse hippocampus (STARmap PLUS)</h1>
+
+</div>
+
+
+<p>This page analyses spot-level data, where each location has
+<strong>cell-type proportions</strong> instead of a single label:
+STARmap PLUS data of the hippocampus of a 13-month-old Alzheimer’s
+disease mouse model (Zeng <em>et al.</em>, 2023). With more than 6,000
+cells it also shows SIGNAL’s settings for large data. To keep the page
+quick, it runs three genes named in the paper; the analysis of all genes
+uses the same code.</p>
+<div id="data" class="section level2">
+<h2>Data</h2>
+<p>The processed data used on this page,
+<code>starmap_plus_data_use.RData</code> (counts, locations and
+cell-type proportions), can be downloaded from the <a
+href="https://drive.google.com/drive/folders/1-j6l-KBT9dR_p2RB2RVb_5q9Ig2GdRn3">SIGNAL
+real data folder</a> on Google Drive. The raw data are sample
+<code>spatial_13months-disease-replicate_1</code> of study SCP1375 on
+the Broad Single Cell Portal. Each segmented cell is treated as a
+near-cellular spot, and its cell-type composition is estimated by
+reference-based deconvolution (CARD with the DropViz mouse hippocampus
+reference).</p>
+<pre class="r"><code>library(SIGNAL)
+library(Matrix)
+load(&quot;starmap_plus_data_use.RData&quot;)
+dim(data_use$count_use)
+#&gt; [1] 2766 9244
+prop &lt;- as.matrix(data_use$celltype_proportion)
+prop &lt;- prop[, colSums(prop) &gt; 100]       # cell types with enough cells
+dim(prop)
+#&gt; [1] 9244   23
+round(prop[1:3, 1:5], 2)   # first cells and cell types
+#&gt;        Interneuron Neuron Entorhinal cortex Deep layer subiculum
+#&gt; X29261        0.05   0.00              0.01                 0.05
+#&gt; X29267        0.00   0.00              0.01                 0.00
+#&gt; X29268        0.02   0.01              0.01                 0.08
+#&gt;        Entorhinal cortex (IEG)
+#&gt; X29261                    0.01
+#&gt; X29267                    0.03
+#&gt; X29268                    0.03</code></pre>
+</div>
+<div id="step-1-create-a-signal-object" class="section level2">
+<h2>Step 1: create a SIGNAL object</h2>
+<p>Three genes from the paper: <em>Bin1</em> and <em>Apoe</em>,
+Alzheimer’s disease risk genes, and <em>Atp8a1</em>.</p>
+<pre class="r"><code>genes &lt;- c(&quot;Bin1&quot;, &quot;Apoe&quot;, &quot;Atp8a1&quot;)
+obj &lt;- createSIGNALobject(data_use$count_use[genes, ], data_use$location_use, prop)
+obj
+#&gt; SIGNAL object: SIGNAL 
+#&gt;   3 genes x 9244 cells, 23 cell types
+#&gt;   Steps run: none</code></pre>
+</div>
+<div id="step-2-filter-and-transform" class="section level2">
+<h2>Step 2: filter and transform</h2>
+<pre class="r"><code>obj &lt;- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
+#&gt; Transforming 3 genes (rank)</code></pre>
+</div>
+<div id="step-3-build-the-kernels" class="section level2">
+<h2>Step 3: build the kernels</h2>
+<p>Two of SIGNAL’s automatic choices apply:</p>
+<ul>
+<li><strong>Cell-type kernel:</strong> the cell-type input is a matrix
+of proportions, so SIGNAL uses a Gaussian kernel on the Euclidean
+distance between proportion vectors
+(<code>celltype_distance = "auto"</code>).</li>
+<li><strong>Spatial kernel:</strong> with more than 6,000 cells, SIGNAL
+builds one Gaussian kernel instead of 11
+(<code>approximation = "auto"</code>). Its bandwidth is chosen from the
+expression of all genes with Silverman’s rule; with only three genes in
+the object, we compute it from the full count matrix and pass it
+on.</li>
+</ul>
+<pre class="r"><code>bw &lt;- select_bandwidth(data_use$count_use)
+bw
+#&gt; [1] 0.03053034
+obj &lt;- SIGNAL_kernel(obj, bandwidth = bw)
+#&gt; Building one Gaussian spatial kernel for 9244 cells
+#&gt; Bandwidth: 0.03053
+obj@params$kernel[c(&quot;celltype_distance&quot;, &quot;approximation&quot;)]
+#&gt; $celltype_distance
+#&gt; [1] &quot;euclidean&quot;
+#&gt; 
+#&gt; $approximation
+#&gt; [1] TRUE</code></pre>
+</div>
+<div id="step-4-test-the-genes" class="section level2">
+<h2>Step 4: test the genes</h2>
+<p>Each n × n matrix takes 0.68 GB at 9,244 cells; the main process
+holds about 20 of them and each parallel worker about 7 more. This page
+ran on a computer with 24 GB of memory, so it uses one worker:</p>
+<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 1, verbose = FALSE)
+signif(obj@result, 3)
+#&gt;        p_overall p_celltype p_spatial  p_ctSVG
+#&gt; Bin1    1.11e-16   1.11e-16   0.62100 6.76e-01
+#&gt; Apoe    1.11e-16   1.11e-16   0.00772 9.78e-01
+#&gt; Atp8a1  1.11e-16   3.42e-01   0.51800 1.11e-16</code></pre>
+<pre class="r"><code>res &lt;- obj@result
+apply(res[, c(&quot;p_celltype&quot;, &quot;p_spatial&quot;, &quot;p_ctSVG&quot;)] &lt; 0.05, 1, function(f)
+  paste(c(&quot;CellType&quot;, &quot;Spatial&quot;, &quot;ctSVG&quot;)[f], collapse = &quot;+&quot;))
+#&gt;               Bin1               Apoe             Atp8a1 
+#&gt;         &quot;CellType&quot; &quot;CellType+Spatial&quot;            &quot;ctSVG&quot;</code></pre>
+<p>Memory needed with more workers:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Workers (<code>ncores</code>)</th>
+<th>Memory needed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>about 17 GB</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>about 50 GB</td>
+</tr>
+<tr class="odd">
+<td>12</td>
+<td>about 70 GB</td>
+</tr>
+<tr class="even">
+<td>20</td>
+<td>about 110 GB</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="step-5-visualise-the-genes" class="section level2">
+<h2>Step 5: visualise the genes</h2>
+<pre class="r"><code>SIGNAL_plotGene(obj, &quot;Apoe&quot;, point_size = 0.4)</code></pre>
+<p><img src="Alzheimer_files/figure-html/plot-apoe-1.png" alt="" width="768" /></p>
+<pre class="r"><code>SIGNAL_plotGene(obj, &quot;Atp8a1&quot;, point_size = 0.4)</code></pre>
+<p><img src="Alzheimer_files/figure-html/plot-atp8a1-1.png" alt="" width="768" /></p>
+</div>
+
+<hr>
+<p style="text-align: center; color: #777; font-size: 0.9em;">
+SIGNAL: Spatial varIable Gene detectioN And cLassification &middot;
+<a href="https://github.com/TingtHou/SIGNAL">github.com/TingtHou/SIGNAL</a>
+</p>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

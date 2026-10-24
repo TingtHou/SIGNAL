@@ -1,0 +1,24 @@
+---
+title: "Installation"
+---
+
+Install SIGNAL from GitHub in R:
+
+```{r, eval = FALSE}
+if (!require("devtools", quietly = TRUE)) install.packages("devtools")
+devtools::install_github("TingtHou/SIGNAL", build_vignettes = TRUE)
+```
+
+SIGNAL depends on `CompQuadForm`, `ggplot2`, `pbmcapply`, `RhpcBLASctl` and
+packages that ship with R. Missing CRAN packages are installed automatically,
+and nothing needs to be compiled.
+
+```{r, eval = FALSE}
+library(SIGNAL)
+packageDescription("SIGNAL")$RemoteSha   # installed version (GitHub commit)
+vignette("SIGNAL")                       # the Getting started example
+```
+
+**Windows:** SIGNAL runs genes in parallel by forking R processes (`ncores`).
+Forking does not work on Windows, so there SIGNAL runs on one core. Use Linux
+or macOS for parallel runs.
