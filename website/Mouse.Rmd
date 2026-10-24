@@ -3,14 +3,12 @@ title: "Mouse hypothalamus (MERFISH)"
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", cache = TRUE, fig.width = 8, fig.height = 5.5)
-knitr::opts_knit$set(root.dir = "/mnt/c/Users/tingthou/Desktop/SIGNAL/SingleCell/RealData")
+knitr::opts_chunk$set(eval = FALSE)
 ```
 
 This page analyses single-cell MERFISH data of the preoptic area of the mouse
-hypothalamus (Moffitt *et al.*, 2018) with cell-type labels and a single
-Gaussian spatial kernel. To keep the page quick, it runs three genes named in
-the paper; the analysis of all 155 genes uses the same code.
+hypothalamus (Moffitt *et al.*, 2018), with cell-type labels and a single
+Gaussian spatial kernel.
 
 ## Data
 
@@ -19,20 +17,14 @@ can be downloaded from the
 [SIGNAL real data folder](https://drive.google.com/drive/folders/1-j6l-KBT9dR_p2RB2RVb_5q9Ig2GdRn3)
 on Google Drive. The data come from the BASS analysis page
 (<https://zhengli09.github.io/BASS-Analysis/MERFISH.html>): the tissue section
-at Bregma −0.09 mm from animal 1, with 155 genes on 5,557 cells.
+at Bregma −0.09 mm from animal 1, with 155 genes on 5,557 cells. The 37
+pericytes are too few for per-cell-type testing and are removed, leaving 5,520
+cells in eight cell types.
 
-```{r load}
+```{r}
 library(SIGNAL)
 library(Matrix)
-load("Mouse_hypothalamic_preoptic.Rdata")
-dim(data_use$count_use)
-table(data_use$cluster)
-```
-
-The 37 pericytes are too few for per-cell-type testing and are removed,
-leaving 5,520 cells in eight cell types:
-
-```{r subset}
+load("Mouse_hypothalamic_preoptic.Rdata")   # data_use$count_use, $location_coord, $cluster
 keep     <- data_use$cluster != "Pericytes"
 counts   <- data_use$count_use[, keep]
 location <- data_use$location_coord[keep, ]
@@ -41,77 +33,55 @@ celltype <- droplevels(factor(data_use$cluster[keep]))
 
 ## Step 1: create a SIGNAL object
 
-Three genes from the paper: *Gad1*, a marker of inhibitory neurons; *Cck*,
-expressed in one region of the tissue across several cell types; and *Gda*,
-with different spatial patterns in inhibitory and excitatory neurons.
-
-```{r create}
-genes <- c("Gad1", "Cck", "Gda")
-obj <- createSIGNALobject(counts[genes, ], location, celltype)
-obj
+```{r}
+obj <- createSIGNALobject(counts, location, celltype)
 ```
 
 ## Step 2: filter and transform
 
-```{r preprocess}
-obj <- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
+```{r}
+obj <- SIGNAL_preprocess(obj, min_cells = 0)
 ```
 
 ## Step 3: build the kernels
 
-The cell-type input is a vector of labels, so SIGNAL uses the Hamming
-cell-type kernel. As in CELINA's approximation mode, we use one Gaussian
-spatial kernel (`approximation = TRUE`). Its bandwidth is chosen from the
-expression of **all** genes with Silverman's rule; with only three genes in
-the object, we compute it from the full count matrix and pass it on:
+Cell-type labels give the Hamming cell-type kernel. As in CELINA's
+approximation mode, we use one Gaussian spatial kernel (`approximation = TRUE`);
+its bandwidth is chosen from the expression data by Silverman's rule.
 
-```{r kernel}
-bw <- select_bandwidth(counts)
-bw
-obj <- SIGNAL_kernel(obj, approximation = TRUE, bandwidth = bw)
-names(obj@spatial_kernels)
+```{r}
+obj <- SIGNAL_kernel(obj, approximation = TRUE)
+obj@params$kernel$bandwidth
 ```
+
+To use the panel of 11 spatial kernels instead, leave out
+`approximation = TRUE` (5,520 cells is below the 6,000-cell threshold).
 
 ## Step 4: test the genes
 
-```{r test}
-obj <- SIGNAL_test(obj, ncores = 3, verbose = FALSE)
-signif(obj@result, 3)
+```{r}
+obj <- SIGNAL_test(obj, ncores = 8)
+write.csv(obj@result, "mouse_signal_pvalues.csv")
 ```
 
-All three genes are detected by the overall test. Values of about 1e-16 are
-below the accuracy of Davies' method (about 1e-6); use
-`method = "saddlepoint"` to keep their actual size.
+## Step 5: find the cell types behind each ctSVG
 
-```{r classify}
-res <- obj@result
-apply(res[, c("p_celltype", "p_spatial", "p_ctSVG")] < 0.05, 1, function(f)
-  paste(c("CellType", "Spatial", "ctSVG")[f], collapse = "+"))
+```{r}
+res   <- obj@result
+ctsvg <- rownames(res)[p.adjust(res$p_overall, "BH") < 0.05 & res$p_ctSVG < 0.05]
+obj   <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 8)
+obj@celltype_result
 ```
 
-## Step 5: visualise the genes
+## Step 6: visualise a gene
 
-```{r plot-gad1}
-SIGNAL_plotGene(obj, "Gad1", by_celltype = TRUE, point_size = 0.4)
-```
-
-```{r plot-cck}
-SIGNAL_plotGene(obj, "Cck", by_celltype = TRUE, point_size = 0.4)
-```
-
-```{r plot-gda}
+```{r}
 SIGNAL_plotGene(obj, "Gda", by_celltype = TRUE, point_size = 0.4)
 ```
 
-## Step 6: cell types behind the cell-type-specific pattern
-
-```{r celltype}
-obj <- SIGNAL_celltype(obj, genes = "Gda", ncores = 3, verbose = FALSE)
-signif(obj@celltype_result, 2)
+```{r, eval = TRUE, echo = FALSE, out.width = "100%"}
+knitr::include_graphics("figures/mouse_Gda.png")
 ```
 
-## Run time
-
-```{r time, cache = FALSE, echo = FALSE}
-cat("This page ran on", RhpcBLASctl::get_num_cores(), "cores (Linux, OpenBLAS).\n")
-```
+*Gda* is concentrated in a V-shaped region in inhibitory neurons and in the
+upper central region in excitatory neurons.

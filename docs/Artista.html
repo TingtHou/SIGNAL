@@ -14,7 +14,7 @@
 <title>Axolotl brain (Stereo-seq)</title>
 
 <script src="site_libs/header-attrs-2.30/header-attrs.js"></script>
-<script src="site_libs/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
@@ -387,10 +387,7 @@ div.tocify {
 
 <p>This page analyses single-cell resolution Stereo-seq data of the
 axolotl brain at developmental stage 57 (Wei <em>et al.</em>, 2022),
-with cell-type labels and the panel of 11 spatial kernels. To keep the
-page quick, it runs three genes named in the paper; the analysis of all
-16,586 genes uses the same code and is best split into batches on a
-cluster (below).</p>
+with cell-type labels and the panel of 11 spatial kernels.</p>
 <div id="data" class="section level2">
 <h2>Data</h2>
 <p>The processed data used on this page,
@@ -401,92 +398,58 @@ database (<a href="https://db.cngb.org/stomics/artista/download/"
 class="uri">https://db.cngb.org/stomics/artista/download/</a>); we
 removed mitochondrial genes, kept genes with non-zero expression in at
 least 20 locations and locations with non-zero expression for at least
-20 genes.</p>
+20 genes, leaving 16,586 genes on 4,410 locations in six cell types.</p>
 <pre class="r"><code>library(SIGNAL)
 library(Matrix)
-load(&quot;artista_data.RData&quot;)
-dim(data_use$count_use)
-#&gt; [1] 16586  4410
-table(data_use$cluster)
-#&gt; 
-#&gt;              CP             EGC Immature_Neuron   Mature_Neuron             NBL 
-#&gt;             382            1190            1626             201             606 
-#&gt;            VLMC 
-#&gt;             405</code></pre>
+load(&quot;artista_data.RData&quot;)    # data_use$count_use, $location_coord, $cluster</code></pre>
 </div>
 <div id="step-1-create-a-signal-object" class="section level2">
 <h2>Step 1: create a SIGNAL object</h2>
-<p>Three genes from the paper: <em>AACS</em>, a cell-type gene;
-<em>TCF4</em>, a spatial gene; and <em>SDC2</em>, a gene with a
-cell-type-specific spatial pattern.</p>
-<pre class="r"><code>genes &lt;- c(&quot;AACS&quot;, &quot;TCF4&quot;, &quot;SDC2&quot;)
-obj &lt;- createSIGNALobject(data_use$count_use[genes, ], data_use$location_coord,
-                          data_use$cluster)
-obj
-#&gt; SIGNAL object: SIGNAL 
-#&gt;   3 genes x 4410 cells, 6 cell types
-#&gt;   Steps run: none</code></pre>
+<pre class="r"><code>obj &lt;- createSIGNALobject(counts   = data_use$count_use,
+                          location = data_use$location_coord,
+                          celltype = data_use$cluster)</code></pre>
 </div>
 <div id="step-2-filter-and-transform" class="section level2">
 <h2>Step 2: filter and transform</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
-#&gt; Transforming 3 genes (rank)</code></pre>
+<p>The genes were already filtered, so <code>min_cells = 0</code> keeps
+all of them.</p>
+<pre class="r"><code>obj &lt;- SIGNAL_preprocess(obj, min_cells = 0)</code></pre>
 </div>
 <div id="step-3-build-the-kernels" class="section level2">
 <h2>Step 3: build the kernels</h2>
 <p>Cell-type labels give the Hamming cell-type kernel. With 4,410 cells
 (fewer than 6,000), SIGNAL builds the panel of 11 spatial kernels.</p>
-<pre class="r"><code>obj &lt;- SIGNAL_kernel(obj)
-#&gt; Building spatial kernels for 4410 cells
-names(obj@spatial_kernels)
-#&gt;  [1] &quot;gaussian_1&quot; &quot;matern_1&quot;   &quot;gaussian_2&quot; &quot;matern_2&quot;   &quot;gaussian_3&quot;
-#&gt;  [6] &quot;matern_3&quot;   &quot;gaussian_4&quot; &quot;matern_4&quot;   &quot;gaussian_5&quot; &quot;matern_5&quot;  
-#&gt; [11] &quot;spline&quot;</code></pre>
+<pre class="r"><code>obj &lt;- SIGNAL_kernel(obj)</code></pre>
 </div>
 <div id="step-4-test-the-genes" class="section level2">
 <h2>Step 4: test the genes</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 3, verbose = FALSE)
-signif(obj@result, 3)
-#&gt;      p_overall p_celltype p_spatial  p_ctSVG
-#&gt; AACS  1.11e-16   1.11e-16  6.48e-03 6.51e-01
-#&gt; TCF4  1.11e-16   7.69e-01  1.11e-16 3.74e-03
-#&gt; SDC2  1.11e-16   1.06e-01  3.33e-16 3.52e-06</code></pre>
-<pre class="r"><code>res &lt;- obj@result
-apply(res[, c(&quot;p_celltype&quot;, &quot;p_spatial&quot;, &quot;p_ctSVG&quot;)] &lt; 0.05, 1, function(f)
-  paste(c(&quot;CellType&quot;, &quot;Spatial&quot;, &quot;ctSVG&quot;)[f], collapse = &quot;+&quot;))
-#&gt;               AACS               TCF4               SDC2 
-#&gt; &quot;CellType+Spatial&quot;    &quot;Spatial+ctSVG&quot;    &quot;Spatial+ctSVG&quot;</code></pre>
-<p>Values of about 1e-16 are below the accuracy of Davies’ method (about
-1e-6); use <code>method = "saddlepoint"</code> to keep their actual
-size.</p>
+<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 20)
+write.csv(obj@result, &quot;artista_signal_pvalues.csv&quot;)</code></pre>
 </div>
-<div id="step-5-visualise-the-genes" class="section level2">
-<h2>Step 5: visualise the genes</h2>
-<pre class="r"><code>SIGNAL_plotGene(obj, &quot;AACS&quot;, by_celltype = TRUE, point_size = 0.5)</code></pre>
-<p><img src="Artista_files/figure-html/plot-aacs-1.png" alt="" width="768" /></p>
-<pre class="r"><code>SIGNAL_plotGene(obj, &quot;TCF4&quot;, by_celltype = TRUE, point_size = 0.5)</code></pre>
-<p><img src="Artista_files/figure-html/plot-tcf4-1.png" alt="" width="768" /></p>
-<pre class="r"><code>SIGNAL_plotGene(obj, &quot;SDC2&quot;, by_celltype = TRUE, point_size = 0.5)</code></pre>
-<p><img src="Artista_files/figure-html/plot-sdc2-1.png" alt="" width="768" /></p>
-</div>
-<div id="step-6-cell-types-behind-the-cell-type-specific-pattern"
+<div id="step-5-find-the-cell-types-behind-each-ctsvg"
 class="section level2">
-<h2>Step 6: cell types behind the cell-type-specific pattern</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_celltype(obj, genes = &quot;SDC2&quot;, ncores = 3, verbose = FALSE)
-signif(obj@celltype_result, 2)
-#&gt;         CP  EGC Immature_Neuron Mature_Neuron   NBL VLMC
-#&gt; SDC2 0.088 0.98         2.3e-06          0.91 0.094 0.99</code></pre>
+<h2>Step 5: find the cell types behind each ctSVG</h2>
+<pre class="r"><code>res   &lt;- obj@result
+ctsvg &lt;- rownames(res)[p.adjust(res$p_overall, &quot;BH&quot;) &lt; 0.05 &amp; res$p_ctSVG &lt; 0.05]
+obj   &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 20)
+obj@celltype_result</code></pre>
 </div>
-<div id="all-genes-batches-on-a-cluster" class="section level2">
-<h2>All genes: batches on a cluster</h2>
-<p>The genes are tested independently, so the 16,586 genes can be split
-over the tasks of a Slurm job array, and the result tables combined
-afterwards:</p>
+<div id="step-6-visualise-a-gene" class="section level2">
+<h2>Step 6: visualise a gene</h2>
+<pre class="r"><code>SIGNAL_plotGene(obj, &quot;SDC2&quot;, by_celltype = TRUE, point_size = 0.5)</code></pre>
+<p><img src="figures/artista_SDC2.png" alt="" width="100%" /></p>
+</div>
+<div id="running-on-a-cluster-in-batches-of-genes"
+class="section level2">
+<h2>Running on a cluster in batches of genes</h2>
+<p>With 16,586 genes and 11 kernels, the analysis is best split into
+batches of genes, one per task of a Slurm job array, and the result
+tables combined afterwards:</p>
 <pre class="r"><code>part  &lt;- as.integer(Sys.getenv(&quot;SLURM_ARRAY_TASK_ID&quot;))
 genes &lt;- rownames(data_use$count_use)
 batch &lt;- genes[parallel::splitIndices(length(genes), 100)[[part]]]
 obj &lt;- SIGNAL(data_use$count_use[batch, ], data_use$location_coord, data_use$cluster,
-              min_cells = 0, seed = 1)            # ncores = the Slurm allocation
+              min_cells = 0)                     # ncores = the Slurm allocation
 saveRDS(obj@result, sprintf(&quot;artista_part_%03d.rds&quot;, part))</code></pre>
 <pre class="bash"><code>sbatch --array=1-100 --cpus-per-task=20 --mem-per-cpu=4G --time=24:00:00 run_artista.sh</code></pre>
 <p>With 4,410 cells, each spatial kernel takes about 17 minutes for 160

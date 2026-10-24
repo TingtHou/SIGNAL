@@ -14,7 +14,7 @@
 <title>Mouse hypothalamus (MERFISH)</title>
 
 <script src="site_libs/header-attrs-2.30/header-attrs.js"></script>
-<script src="site_libs/jquery-3.7.1/jquery-3.7.1.min.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
@@ -386,10 +386,8 @@ div.tocify {
 
 
 <p>This page analyses single-cell MERFISH data of the preoptic area of
-the mouse hypothalamus (Moffitt <em>et al.</em>, 2018) with cell-type
-labels and a single Gaussian spatial kernel. To keep the page quick, it
-runs three genes named in the paper; the analysis of all 155 genes uses
-the same code.</p>
+the mouse hypothalamus (Moffitt <em>et al.</em>, 2018), with cell-type
+labels and a single Gaussian spatial kernel.</p>
 <div id="data" class="section level2">
 <h2>Data</h2>
 <p>The processed data used on this page,
@@ -401,99 +399,55 @@ analysis page (<a
 href="https://zhengli09.github.io/BASS-Analysis/MERFISH.html"
 class="uri">https://zhengli09.github.io/BASS-Analysis/MERFISH.html</a>):
 the tissue section at Bregma −0.09 mm from animal 1, with 155 genes on
-5,557 cells.</p>
+5,557 cells. The 37 pericytes are too few for per-cell-type testing and
+are removed, leaving 5,520 cells in eight cell types.</p>
 <pre class="r"><code>library(SIGNAL)
 library(Matrix)
-load(&quot;Mouse_hypothalamic_preoptic.Rdata&quot;)
-dim(data_use$count_use)
-#&gt; [1]  155 5557
-table(data_use$cluster)
-#&gt; 
-#&gt;   Astrocyte Endothelial   Ependymal  Excitatory  Inhibitory   Microglia 
-#&gt;         634         428         305        1087        2530         108 
-#&gt; OD Immature   OD Mature   Pericytes 
-#&gt;         188         240          37</code></pre>
-<p>The 37 pericytes are too few for per-cell-type testing and are
-removed, leaving 5,520 cells in eight cell types:</p>
-<pre class="r"><code>keep     &lt;- data_use$cluster != &quot;Pericytes&quot;
+load(&quot;Mouse_hypothalamic_preoptic.Rdata&quot;)   # data_use$count_use, $location_coord, $cluster
+keep     &lt;- data_use$cluster != &quot;Pericytes&quot;
 counts   &lt;- data_use$count_use[, keep]
 location &lt;- data_use$location_coord[keep, ]
 celltype &lt;- droplevels(factor(data_use$cluster[keep]))</code></pre>
 </div>
 <div id="step-1-create-a-signal-object" class="section level2">
 <h2>Step 1: create a SIGNAL object</h2>
-<p>Three genes from the paper: <em>Gad1</em>, a marker of inhibitory
-neurons; <em>Cck</em>, expressed in one region of the tissue across
-several cell types; and <em>Gda</em>, with different spatial patterns in
-inhibitory and excitatory neurons.</p>
-<pre class="r"><code>genes &lt;- c(&quot;Gad1&quot;, &quot;Cck&quot;, &quot;Gda&quot;)
-obj &lt;- createSIGNALobject(counts[genes, ], location, celltype)
-obj
-#&gt; SIGNAL object: SIGNAL 
-#&gt;   3 genes x 5520 cells, 8 cell types
-#&gt;   Steps run: none</code></pre>
+<pre class="r"><code>obj &lt;- createSIGNALobject(counts, location, celltype)</code></pre>
 </div>
 <div id="step-2-filter-and-transform" class="section level2">
 <h2>Step 2: filter and transform</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
-#&gt; Transforming 3 genes (rank)</code></pre>
+<pre class="r"><code>obj &lt;- SIGNAL_preprocess(obj, min_cells = 0)</code></pre>
 </div>
 <div id="step-3-build-the-kernels" class="section level2">
 <h2>Step 3: build the kernels</h2>
-<p>The cell-type input is a vector of labels, so SIGNAL uses the Hamming
-cell-type kernel. As in CELINA’s approximation mode, we use one Gaussian
-spatial kernel (<code>approximation = TRUE</code>). Its bandwidth is
-chosen from the expression of <strong>all</strong> genes with
-Silverman’s rule; with only three genes in the object, we compute it
-from the full count matrix and pass it on:</p>
-<pre class="r"><code>bw &lt;- select_bandwidth(counts)
-bw
-#&gt; [1] 0.1060964
-obj &lt;- SIGNAL_kernel(obj, approximation = TRUE, bandwidth = bw)
-#&gt; Building one Gaussian spatial kernel for 5520 cells
-#&gt; Bandwidth: 0.1061
-names(obj@spatial_kernels)
-#&gt; [1] &quot;gaussian&quot;</code></pre>
+<p>Cell-type labels give the Hamming cell-type kernel. As in CELINA’s
+approximation mode, we use one Gaussian spatial kernel
+(<code>approximation = TRUE</code>); its bandwidth is chosen from the
+expression data by Silverman’s rule.</p>
+<pre class="r"><code>obj &lt;- SIGNAL_kernel(obj, approximation = TRUE)
+obj@params$kernel$bandwidth</code></pre>
+<p>To use the panel of 11 spatial kernels instead, leave out
+<code>approximation = TRUE</code> (5,520 cells is below the 6,000-cell
+threshold).</p>
 </div>
 <div id="step-4-test-the-genes" class="section level2">
 <h2>Step 4: test the genes</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 3, verbose = FALSE)
-signif(obj@result, 3)
-#&gt;      p_overall p_celltype p_spatial  p_ctSVG
-#&gt; Gad1  1.11e-16   1.11e-16  1.24e-03 4.75e-01
-#&gt; Cck   1.11e-16   1.11e-16  1.11e-16 3.76e-02
-#&gt; Gda   1.11e-16   1.11e-16  1.11e-16 2.91e-05</code></pre>
-<p>All three genes are detected by the overall test. Values of about
-1e-16 are below the accuracy of Davies’ method (about 1e-6); use
-<code>method = "saddlepoint"</code> to keep their actual size.</p>
-<pre class="r"><code>res &lt;- obj@result
-apply(res[, c(&quot;p_celltype&quot;, &quot;p_spatial&quot;, &quot;p_ctSVG&quot;)] &lt; 0.05, 1, function(f)
-  paste(c(&quot;CellType&quot;, &quot;Spatial&quot;, &quot;ctSVG&quot;)[f], collapse = &quot;+&quot;))
-#&gt;                     Gad1                      Cck                      Gda 
-#&gt;       &quot;CellType+Spatial&quot; &quot;CellType+Spatial+ctSVG&quot; &quot;CellType+Spatial+ctSVG&quot;</code></pre>
+<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 8)
+write.csv(obj@result, &quot;mouse_signal_pvalues.csv&quot;)</code></pre>
 </div>
-<div id="step-5-visualise-the-genes" class="section level2">
-<h2>Step 5: visualise the genes</h2>
-<pre class="r"><code>SIGNAL_plotGene(obj, &quot;Gad1&quot;, by_celltype = TRUE, point_size = 0.4)</code></pre>
-<p><img src="Mouse_files/figure-html/plot-gad1-1.png" alt="" width="768" /></p>
-<pre class="r"><code>SIGNAL_plotGene(obj, &quot;Cck&quot;, by_celltype = TRUE, point_size = 0.4)</code></pre>
-<p><img src="Mouse_files/figure-html/plot-cck-1.png" alt="" width="768" /></p>
-<pre class="r"><code>SIGNAL_plotGene(obj, &quot;Gda&quot;, by_celltype = TRUE, point_size = 0.4)</code></pre>
-<p><img src="Mouse_files/figure-html/plot-gda-1.png" alt="" width="768" /></p>
-</div>
-<div id="step-6-cell-types-behind-the-cell-type-specific-pattern"
+<div id="step-5-find-the-cell-types-behind-each-ctsvg"
 class="section level2">
-<h2>Step 6: cell types behind the cell-type-specific pattern</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_celltype(obj, genes = &quot;Gda&quot;, ncores = 3, verbose = FALSE)
-signif(obj@celltype_result, 2)
-#&gt;     Astrocyte Endothelial Ependymal Excitatory Inhibitory Microglia OD Immature
-#&gt; Gda         1        0.99      0.74       0.12    0.00054      0.99        0.85
-#&gt;     OD Mature
-#&gt; Gda       0.3</code></pre>
+<h2>Step 5: find the cell types behind each ctSVG</h2>
+<pre class="r"><code>res   &lt;- obj@result
+ctsvg &lt;- rownames(res)[p.adjust(res$p_overall, &quot;BH&quot;) &lt; 0.05 &amp; res$p_ctSVG &lt; 0.05]
+obj   &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 8)
+obj@celltype_result</code></pre>
 </div>
-<div id="run-time" class="section level2">
-<h2>Run time</h2>
-<pre><code>#&gt; This page ran on 20 cores (Linux, OpenBLAS).</code></pre>
+<div id="step-6-visualise-a-gene" class="section level2">
+<h2>Step 6: visualise a gene</h2>
+<pre class="r"><code>SIGNAL_plotGene(obj, &quot;Gda&quot;, by_celltype = TRUE, point_size = 0.4)</code></pre>
+<p><img src="figures/mouse_Gda.png" alt="" width="100%" /></p>
+<p><em>Gda</em> is concentrated in a V-shaped region in inhibitory
+neurons and in the upper central region in excitatory neurons.</p>
 </div>
 
 <hr>

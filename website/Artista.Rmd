@@ -3,15 +3,12 @@ title: "Axolotl brain (Stereo-seq)"
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", cache = TRUE, fig.width = 8, fig.height = 5.5)
-knitr::opts_knit$set(root.dir = "/mnt/c/Users/tingthou/Desktop/SIGNAL/SingleCell/RealData")
+knitr::opts_chunk$set(eval = FALSE)
 ```
 
 This page analyses single-cell resolution Stereo-seq data of the axolotl brain
 at developmental stage 57 (Wei *et al.*, 2022), with cell-type labels and the
-panel of 11 spatial kernels. To keep the page quick, it runs three genes named
-in the paper; the analysis of all 16,586 genes uses the same code and is best
-split into batches on a cluster (below).
+panel of 11 spatial kernels.
 
 ## Data
 
@@ -20,32 +17,29 @@ from the [SIGNAL real data folder](https://drive.google.com/drive/folders/1-j6l-
 on Google Drive. The raw data are in the ARTISTA database
 (<https://db.cngb.org/stomics/artista/download/>); we removed mitochondrial
 genes, kept genes with non-zero expression in at least 20 locations and
-locations with non-zero expression for at least 20 genes.
+locations with non-zero expression for at least 20 genes, leaving 16,586 genes
+on 4,410 locations in six cell types.
 
-```{r load}
+```{r}
 library(SIGNAL)
 library(Matrix)
-load("artista_data.RData")
-dim(data_use$count_use)
-table(data_use$cluster)
+load("artista_data.RData")    # data_use$count_use, $location_coord, $cluster
 ```
 
 ## Step 1: create a SIGNAL object
 
-Three genes from the paper: *AACS*, a cell-type gene; *TCF4*, a spatial gene;
-and *SDC2*, a gene with a cell-type-specific spatial pattern.
-
-```{r create}
-genes <- c("AACS", "TCF4", "SDC2")
-obj <- createSIGNALobject(data_use$count_use[genes, ], data_use$location_coord,
-                          data_use$cluster)
-obj
+```{r}
+obj <- createSIGNALobject(counts   = data_use$count_use,
+                          location = data_use$location_coord,
+                          celltype = data_use$cluster)
 ```
 
 ## Step 2: filter and transform
 
-```{r preprocess}
-obj <- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
+The genes were already filtered, so `min_cells = 0` keeps all of them.
+
+```{r}
+obj <- SIGNAL_preprocess(obj, min_cells = 0)
 ```
 
 ## Step 3: build the kernels
@@ -53,63 +47,52 @@ obj <- SIGNAL_preprocess(obj, min_cells = 0, seed = 1)
 Cell-type labels give the Hamming cell-type kernel. With 4,410 cells (fewer
 than 6,000), SIGNAL builds the panel of 11 spatial kernels.
 
-```{r kernel}
+```{r}
 obj <- SIGNAL_kernel(obj)
-names(obj@spatial_kernels)
 ```
 
 ## Step 4: test the genes
 
-```{r test}
-obj <- SIGNAL_test(obj, ncores = 3, verbose = FALSE)
-signif(obj@result, 3)
+```{r}
+obj <- SIGNAL_test(obj, ncores = 20)
+write.csv(obj@result, "artista_signal_pvalues.csv")
 ```
 
-```{r classify}
-res <- obj@result
-apply(res[, c("p_celltype", "p_spatial", "p_ctSVG")] < 0.05, 1, function(f)
-  paste(c("CellType", "Spatial", "ctSVG")[f], collapse = "+"))
+## Step 5: find the cell types behind each ctSVG
+
+```{r}
+res   <- obj@result
+ctsvg <- rownames(res)[p.adjust(res$p_overall, "BH") < 0.05 & res$p_ctSVG < 0.05]
+obj   <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 20)
+obj@celltype_result
 ```
 
-Values of about 1e-16 are below the accuracy of Davies' method (about 1e-6);
-use `method = "saddlepoint"` to keep their actual size.
+## Step 6: visualise a gene
 
-## Step 5: visualise the genes
-
-```{r plot-aacs}
-SIGNAL_plotGene(obj, "AACS", by_celltype = TRUE, point_size = 0.5)
-```
-
-```{r plot-tcf4}
-SIGNAL_plotGene(obj, "TCF4", by_celltype = TRUE, point_size = 0.5)
-```
-
-```{r plot-sdc2}
+```{r}
 SIGNAL_plotGene(obj, "SDC2", by_celltype = TRUE, point_size = 0.5)
 ```
 
-## Step 6: cell types behind the cell-type-specific pattern
-
-```{r celltype}
-obj <- SIGNAL_celltype(obj, genes = "SDC2", ncores = 3, verbose = FALSE)
-signif(obj@celltype_result, 2)
+```{r, eval = TRUE, echo = FALSE, out.width = "100%"}
+knitr::include_graphics("figures/artista_SDC2.png")
 ```
 
-## All genes: batches on a cluster
+## Running on a cluster in batches of genes
 
-The genes are tested independently, so the 16,586 genes can be split over the
-tasks of a Slurm job array, and the result tables combined afterwards:
+With 16,586 genes and 11 kernels, the analysis is best split into batches of
+genes, one per task of a Slurm job array, and the result tables combined
+afterwards:
 
-```{r batches, eval = FALSE}
+```{r}
 part  <- as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID"))
 genes <- rownames(data_use$count_use)
 batch <- genes[parallel::splitIndices(length(genes), 100)[[part]]]
 obj <- SIGNAL(data_use$count_use[batch, ], data_use$location_coord, data_use$cluster,
-              min_cells = 0, seed = 1)            # ncores = the Slurm allocation
+              min_cells = 0)                     # ncores = the Slurm allocation
 saveRDS(obj@result, sprintf("artista_part_%03d.rds", part))
 ```
 
-```{bash, eval = FALSE}
+```{bash}
 sbatch --array=1-100 --cpus-per-task=20 --mem-per-cpu=4G --time=24:00:00 run_artista.sh
 ```
 
