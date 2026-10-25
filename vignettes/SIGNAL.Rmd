@@ -223,11 +223,9 @@ obj <- SIGNAL(counts, location, celltype)
   (`ncores`; on Slurm the cores of the allocation), with a progress bar for
   each spatial kernel. The workers are forked and share each kernel's set-up,
   so each adds only a few n x n matrices of memory. Windows cannot fork, so
-  there the genes run on one core; use Linux (e.g. WSL or a cluster) for
+  there the genes run one at a time; use Linux (e.g. WSL or a cluster) for
   parallel runs. With a multithreaded BLAS such as OpenBLAS, each kernel's
   set-up runs on `ncores` BLAS threads and each worker on one.
-  `parallel = "kernels"` processes the spatial kernels in parallel instead
-  (more memory per worker).
 * R linked to an optimised BLAS (OpenBLAS, Intel MKL, Apple Accelerate) speeds
   up the matrix products considerably.
 

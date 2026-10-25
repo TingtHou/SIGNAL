@@ -172,7 +172,6 @@ obj <- SIGNAL(counts, location, celltype)
 | `transform` | `"rank"` | `"impute"` breaks tied zeros at random; recommended for sparse data with many zeros |
 | `method` | `"davies"` | tail probabilities: `"davies"`, `"saddlepoint"` (accurate below 1e-6), `"liu"` (fast approximation), `"davies_liu"` |
 | `ncores` | all available cores | number of parallel workers (Linux and macOS) |
-| `parallel` | `"auto"` | split the work over genes (`"genes"`) or kernels (`"kernels"`) |
 | `approximation` | `"auto"` | one Gaussian spatial kernel above `max_cells = 6000` cells |
 | `celltype_distance` | `"auto"` | Hamming for labels, Euclidean (Gaussian kernel) for proportions |
 

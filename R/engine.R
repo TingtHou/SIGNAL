@@ -235,7 +235,7 @@
   lost <- vapply(res, is.null, logical(1))
   if (any(lost)) {
     stop(sum(lost), " parallel worker(s) did not return results, probably because they ran out ",
-         "of memory. Use fewer cores (ncores) or parallel = \"genes\".", call. = FALSE)
+         "of memory. Use fewer cores (ncores).", call. = FALSE)
   }
   res
 }

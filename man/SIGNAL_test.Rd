@@ -8,7 +8,6 @@ SIGNAL_test(
   object,
   method = c("davies", "saddlepoint", "liu", "davies_liu"),
   ncores = NULL,
-  parallel = c("auto", "genes", "kernels"),
   verbose = TRUE
 )
 }
@@ -39,8 +38,8 @@ spatial and ctSVG tests.
 
 \item{ncores}{Number of cores. Defaults to all available cores: the
 Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
-\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). How the cores are
-used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
+\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). The spatial kernels
+are processed one at a time. With a multithreaded BLAS (e.g. OpenBLAS,
 MKL), the threads are set by SIGNAL (package RhpcBLASctl) and restored
 afterwards:
 \itemize{
@@ -55,23 +54,6 @@ threads.
 
 So \code{OPENBLAS_NUM_THREADS=1} (or \code{OMP_NUM_THREADS=1}) can be kept in the
 environment for code outside SIGNAL's tests.}
-
-\item{parallel}{How the cores are used:
-\itemize{
-\item \code{"auto"} (default): whichever of the two below is expected to be
-faster, from the number of kernels, genes and cores and the cost of
-\code{method}'s per-kernel set-up; \code{"kernels"} only if its workers fit in
-the available memory.
-\item \code{"genes"}: kernels are processed one at a time and the genes are split
-over the workers. The kernel set-up is computed once and shared, so
-each worker only adds about 3 n x n matrices, and all workers stay busy
-for any number of kernels.
-\item \code{"kernels"}: spatial kernels are processed in parallel. Each worker
-does its own set-up and holds about 20 (\code{"davies"}) to 50 (\code{"liu"},
-\code{"davies_liu"}) n x n matrices, and at most one core per kernel is
-used. Faster with \code{"liu"} or \code{"davies_liu"} and few genes, whose
-per-kernel set-up is costly.
-}}
 
 \item{verbose}{Print progress messages and, with \code{ncores > 1}, a progress
 bar for each spatial kernel (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}).}
