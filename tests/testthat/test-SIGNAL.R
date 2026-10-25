@@ -32,6 +32,33 @@ test_that("step-by-step workflow equals the wrapper and is reproducible", {
   expect_equal(ncol(obj@pvalues_by_kernel$overall), 2)
 })
 
+test_that("SIGNAL_celltype finds the cell type of each ctSVG", {
+  data(SIGNAL_example, package = "SIGNAL", envir = environment())
+  obj <- createSIGNALobject(SIGNAL_example$counts, SIGNAL_example$location,
+                            SIGNAL_example$celltype)
+  obj <- SIGNAL_preprocess(obj, verbose = FALSE)
+  obj <- SIGNAL_kernel(obj, verbose = FALSE)
+  obj@spatial_kernels <- obj@spatial_kernels[c(1, 3)]
+  genes <- c("gene1", "gene61", "gene62")
+
+  # Single-cell level: the spatial test within each cell type
+  sc <- SIGNAL_celltype(obj, genes = genes, ncores = 1, verbose = FALSE)
+  expect_equal(sc@params$celltype$level, "single_cell")
+  expect_equal(dim(sc@celltype_result), c(3, 4))
+  expect_true(all(sc@celltype_result[c("gene61", "gene62"), "CT1"] < 1e-3))
+  cells <- obj@celltype[, "CT1"] == 1
+  y <- qnorm((rank(SIGNAL_example$counts["gene61", cells]) - 0.5) / sum(cells))
+  Ks <- build_spatial_kernels(obj@location[cells, ])   # rebuilt for the subset
+  p <- vapply(Ks, function(K) SIGNAL:::.signal_engine(t(y), list(K, diag(sum(cells))),
+                                                       integer(0))[, 1], numeric(1))
+  expect_equal(sc@celltype_result["gene61", "CT1"], combine_pvalues(t(p)))
+
+  # Spot level: one interaction kernel per cell type
+  sp <- SIGNAL_celltype(obj, genes = genes, level = "spot", ncores = 1, verbose = FALSE)
+  expect_equal(dim(sp@celltype_result), c(3, 4))
+  expect_true(all(sp@celltype_result[c("gene61", "gene62"), "CT1"] < 1e-3))
+})
+
 test_that("sparse counts give the same result as dense counts", {
   skip_if_not_installed("Matrix")
   sim <- simulate_signal_data(n_cells = 60, n_genes = c(null = 3), seed = 8)

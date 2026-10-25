@@ -15,6 +15,8 @@
 #'   `p_spatial`, `p_ctSVG`), set by [SIGNAL_test()].
 #' @slot pvalues_by_kernel List of genes x kernels p-value matrices for the
 #'   overall, cell-type, spatial and ctSVG tests, set by [SIGNAL_test()].
+#' @slot celltype_result Genes x cell types matrix of p-values, set by
+#'   [SIGNAL_celltype()].
 #' @slot params Settings used in each step.
 #' @exportClass SIGNAL
 setClass("SIGNAL", slots = c(
@@ -27,6 +29,7 @@ setClass("SIGNAL", slots = c(
   spatial_kernels = "list",
   result = "data.frame",
   pvalues_by_kernel = "list",
+  celltype_result = "matrix",
   params = "list"
 ))
 
@@ -40,7 +43,8 @@ setMethod("show", "SIGNAL", function(object) {
   steps <- c(
     preprocess = length(object@gene_expression) > 0,
     kernel = length(object@spatial_kernels) > 0,
-    test = nrow(object@result) > 0
+    test = nrow(object@result) > 0,
+    celltype = length(object@celltype_result) > 0
   )
   cat("  Steps run:", if (any(steps)) paste(names(steps)[steps], collapse = ", ") else "none", "\n")
   if (steps[["kernel"]]) {

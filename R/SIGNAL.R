@@ -119,13 +119,8 @@ SIGNAL_preprocess <- function(object, filter = c("min_cells", "celina"),
   }
 
   if (verbose) message("Transforming ", nrow(counts), " genes (", transform, ")")
-  if (transform == "rank") {
-    Y <- t(apply(counts, 1, function(y) stats::qnorm((rank(y) - 0.5) / length(y))))
-  } else {
-    if (!is.null(seed)) set.seed(seed)
-    Y <- t(apply(counts, 1, rank_int_impute, n_imp = n_imp))
-  }
-  dimnames(Y) <- dimnames(counts)
+  if (transform == "impute" && !is.null(seed)) set.seed(seed)
+  Y <- .transform_counts(counts, transform, n_imp)
   constant <- apply(Y, 1, function(y) all(y == y[1]))
   if (any(constant)) {
     if (all(constant)) stop("Every gene is constant after transformation.")
@@ -140,6 +135,17 @@ SIGNAL_preprocess <- function(object, filter = c("min_cells", "celina"),
                                    transform = transform, n_genes = nrow(Y),
                                    n_cells = ncol(Y), n_imp = n_imp, seed = seed)
   object
+}
+
+# Normal scores of each row of a genes x cells count matrix.
+.transform_counts <- function(counts, transform, n_imp) {
+  Y <- if (transform == "rank") {
+    t(apply(counts, 1, function(y) stats::qnorm((rank(y) - 0.5) / length(y))))
+  } else {
+    t(apply(counts, 1, rank_int_impute, n_imp = n_imp))
+  }
+  dimnames(Y) <- dimnames(counts)
+  Y
 }
 
 #' Build the cell-type and spatial kernels
@@ -405,6 +411,121 @@ SIGNAL_component <- function(object, genes = NULL,
   object@pvalues_by_kernel <- pk
   object@params$test <- list(method = method)
   object
+}
+
+#' Find the cell types behind each ctSVG
+#'
+#' Tests, for each cell type, whether a gene has a spatial pattern in that
+#' cell type. Usually run on the genes with a small ctSVG p-value from
+#' [SIGNAL_component()]. The test depends on the cell-type input:
+#' \describe{
+#'   \item{Single-cell data (0/1 cell-type labels)}{Only the cells of type
+#'     `c` are used. Their expression is transformed again within the subset
+#'     (with the settings of [SIGNAL_preprocess()]), the spatial kernels are
+#'     built from their coordinates (with the settings of [SIGNAL_kernel()]),
+#'     and the model \eqn{y \sim N(0, \tau K_{spatial} + \sigma^2 I)} is
+#'     tested for \eqn{\tau = 0}.}
+#'   \item{Spot-level data (cell-type proportions)}{All spots are used. The
+#'     interaction kernel of [SIGNAL_test()] is built from cell type `c`
+#'     alone, \eqn{(x_c x_c^T) \circ K_{spatial}} with both factors
+#'     mean-centred, where \eqn{x_c} is the proportion of `c` in each spot.
+#'     The model keeps the cell-type and spatial kernels, and the
+#'     interaction component is tested.}
+#' }
+#' P-values are combined across spatial kernels with [combine_pvalues()].
+#'
+#' @param object A [SIGNAL-class] object after [SIGNAL_kernel()].
+#' @param genes Genes to test, usually the ctSVGs. Defaults to all genes.
+#' @param level `"auto"` (default; `"single_cell"` when every cell-type
+#'   value is 0 or 1, otherwise `"spot"`), `"single_cell"` or `"spot"`.
+#' @param min_cells Single-cell level: cell types with fewer cells are not
+#'   tested (`NA`).
+#' @inheritParams SIGNAL_test
+#' @return The object with `celltype_result`, a genes x cell types matrix of
+#'   p-values not adjusted for multiple testing, filled in. Genes that are
+#'   constant within a cell type get `NA` for it.
+#' @export
+SIGNAL_celltype <- function(object, genes = NULL, level = c("auto", "single_cell", "spot"),
+                            min_cells = 10,
+                            method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
+                            parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
+  method <- match.arg(method)
+  level <- match.arg(level)
+  .check_ready(object)
+  Y <- object@gene_expression
+  if (is.null(genes)) genes <- rownames(Y)
+  missing_genes <- setdiff(genes, rownames(Y))
+  if (length(missing_genes) > 0) {
+    stop("Genes not found after preprocessing: ", paste(utils::head(missing_genes), collapse = ", "))
+  }
+  X <- object@celltype
+  if (level == "auto") level <- if (all(X %in% c(0, 1))) "single_cell" else "spot"
+  if (is.null(ncores)) ncores <- .default_cores()
+  out <- matrix(NA_real_, length(genes), ncol(X), dimnames = list(genes, colnames(X)))
+  if (length(genes) == 0) {
+    if (verbose) message("No genes to test.")
+    return(object)
+  }
+  pp <- object@params$preprocess
+  if (level == "single_cell" && identical(pp$transform, "impute") && !is.null(pp$seed)) {
+    set.seed(pp$seed)
+  }
+
+  for (c in seq_len(ncol(X))) {
+    if (level == "single_cell") {
+      cells <- X[, c] == 1
+      if (sum(cells) < min_cells) {
+        if (verbose) message("Cell type ", colnames(X)[c], ": ", sum(cells), " cells, not tested")
+        next
+      }
+      counts <- as.matrix(object@counts[genes, cells, drop = FALSE])
+      storage.mode(counts) <- "double"
+      Yc <- .transform_counts(counts, pp$transform, pp$n_imp)
+      Yc <- Yc[apply(Yc, 1, function(y) any(y != y[1])), , drop = FALSE]
+      kernels <- .subset_spatial_kernels(object, cells)
+      test <- function(Yg, Ks, n) {
+        .signal_engine(Yg, list(Ks, diag(nrow(Ks))), integer(0), method, ncores = n)[, 1]
+      }
+    } else {
+      cells <- rep(TRUE, nrow(X))
+      Yc <- Y[genes, , drop = FALSE]
+      kernels <- object@spatial_kernels
+      K_c <- tcrossprod(X[, c])
+      test <- function(Yg, Ks, n) {
+        .signal_engine(Yg, .signal_kernels(object@celltype_kernel, Ks, K_c), 3, method,
+                       ncores = n, overall = FALSE)[, 2]
+      }
+    }
+    if (verbose) {
+      message("Cell type ", colnames(X)[c], ": ", nrow(Yc), " genes, ", sum(cells), " cells")
+    }
+    if (nrow(Yc) == 0) next
+    cores <- .split_cores(ncores, parallel, length(kernels), nrow(Yc), method, ncol(Yc))
+    per_kernel <- .map_kernels(kernels, cores$kernels, FALSE, function(Ks) test(Yc, Ks, cores$genes))
+    out[rownames(Yc), c] <- combine_pvalues(matrix(unlist(per_kernel), nrow = nrow(Yc)))
+  }
+  object@celltype_result <- out
+  object@params$celltype <- list(level = level, method = method, min_cells = min_cells)
+  object
+}
+
+# Spatial kernels for a subset of cells, built as SIGNAL_kernel() built the
+# full ones: from the subset's coordinates, or the rows and columns of
+# user-supplied kernels. The single Gaussian kernel keeps the full data's
+# bandwidth.
+.subset_spatial_kernels <- function(object, cells) {
+  p <- object@params$kernel
+  if (isTRUE(p$user_kernels)) {
+    return(lapply(object@spatial_kernels, function(K) K[cells, cells, drop = FALSE]))
+  }
+  location <- object@location[cells, , drop = FALSE]
+  if (isTRUE(p$approximation)) {
+    K <- build_gaussian_kernel(location, bandwidth = p$bandwidth, tol = p$tol,
+                               standardize = p$standardize)
+    attr(K, "bandwidth") <- NULL
+    return(list(gaussian = K))
+  }
+  build_spatial_kernels(location, basis_number = p$basis_number, standardize = p$standardize)
 }
 
 #' Run the full SIGNAL pipeline
