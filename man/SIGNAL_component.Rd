@@ -42,13 +42,22 @@ spatial and ctSVG tests.
 
 \item{ncores}{Number of cores. Defaults to all available cores: the
 Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
-\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). The workers are
-forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}). Windows
-cannot fork, so there the computation runs on one core. How the cores are
+\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). How the cores are
 used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
-MKL), each kernel's set-up uses \code{ncores} BLAS threads and the workers one
-BLAS thread each (package RhpcBLASctl); the previous setting is restored
-afterwards.}
+MKL), the threads are set by SIGNAL (package RhpcBLASctl) and restored
+afterwards:
+\itemize{
+\item each kernel's set-up runs on \code{ncores} BLAS threads;
+\item with at least \code{ncores} genes, the genes are split over \code{ncores} forked
+workers that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}), one BLAS thread
+each;
+\item with fewer genes than \code{ncores}, or on Windows (which cannot fork), the
+genes are tested one at a time on \code{ncores} BLAS threads.
+}
+
+So \code{OPENBLAS_NUM_THREADS=1} (or \code{OMP_NUM_THREADS=1}) can be kept in the
+environment for code outside SIGNAL; \code{\link[=SIGNAL_kernel]{SIGNAL_kernel()}} also builds the
+kernels on \code{ncores} BLAS threads.}
 
 \item{parallel}{How the cores are used:
 \itemize{

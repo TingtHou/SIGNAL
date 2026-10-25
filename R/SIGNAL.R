@@ -172,14 +172,23 @@ SIGNAL_preprocess <- function(object, filter = c("min_cells", "celina"),
 #'   proportions), `"hamming"` or `"euclidean"`; see [build_celltype_kernel()].
 #' @param basis_number,standardize Passed to [build_spatial_kernels()]
 #'   (`standardize` also to [build_gaussian_kernel()]).
+#' @param ncores Number of BLAS threads used to build the kernels (with a
+#'   multithreaded BLAS); the previous setting is restored afterwards. Defaults
+#'   to all available cores, as in [SIGNAL_test()].
 #' @param verbose Print progress messages.
 #' @return The object with `celltype_kernel` and `spatial_kernels` filled in.
 #' @export
 SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_cells = 6000,
                           bandwidth = NULL, tol = 1e-4,
                           celltype_distance = c("auto", "hamming", "euclidean"), basis_number = 4,
-                          standardize = TRUE, verbose = TRUE) {
+                          standardize = TRUE, ncores = NULL, verbose = TRUE) {
   celltype_distance <- match.arg(celltype_distance)
+  if (is.null(ncores)) ncores <- .default_cores()
+  if (ncores > 1) {
+    blas <- .get_blas_threads()
+    on.exit(.set_blas_threads(blas))
+    .set_blas_threads(ncores)
+  }
   if (celltype_distance == "auto") {
     celltype_distance <- if (all(object@celltype %in% c(0, 1))) "hamming" else "euclidean"
   }
@@ -266,13 +275,20 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'     spatial and ctSVG tests.
 #' @param ncores Number of cores. Defaults to all available cores: the
 #'   Slurm allocation (`SLURM_CPUS_PER_TASK`) when set, otherwise
-#'   [parallel::detectCores()] (2 under `R CMD check`). The workers are
-#'   forked processes that share memory ([pbmcapply::pbmclapply()]). Windows
-#'   cannot fork, so there the computation runs on one core. How the cores are
+#'   [parallel::detectCores()] (2 under `R CMD check`). How the cores are
 #'   used is set by `parallel`. With a multithreaded BLAS (e.g. OpenBLAS,
-#'   MKL), each kernel's set-up uses `ncores` BLAS threads and the workers one
-#'   BLAS thread each (package RhpcBLASctl); the previous setting is restored
-#'   afterwards.
+#'   MKL), the threads are set by SIGNAL (package RhpcBLASctl) and restored
+#'   afterwards:
+#'   * each kernel's set-up runs on `ncores` BLAS threads;
+#'   * with at least `ncores` genes, the genes are split over `ncores` forked
+#'     workers that share memory ([pbmcapply::pbmclapply()]), one BLAS thread
+#'     each;
+#'   * with fewer genes than `ncores`, or on Windows (which cannot fork), the
+#'     genes are tested one at a time on `ncores` BLAS threads.
+#'
+#'   So `OPENBLAS_NUM_THREADS=1` (or `OMP_NUM_THREADS=1`) can be kept in the
+#'   environment for code outside SIGNAL; [SIGNAL_kernel()] also builds the
+#'   kernels on `ncores` BLAS threads.
 #' @param parallel How the cores are used:
 #'   * `"auto"` (default): whichever of the two below is expected to be
 #'     faster, from the number of kernels, genes and cores and the cost of
@@ -483,7 +499,7 @@ SIGNAL_celltype <- function(object, genes = NULL, level = c("auto", "single_cell
       storage.mode(counts) <- "double"
       Yc <- .transform_counts(counts, pp$transform, pp$n_imp)
       Yc <- Yc[apply(Yc, 1, function(y) any(y != y[1])), , drop = FALSE]
-      kernels <- .subset_spatial_kernels(object, cells)
+      kernels <- .with_blas_threads(ncores, .subset_spatial_kernels(object, cells))
       test <- function(Yg, Ks, n) {
         .signal_engine(Yg, list(Ks - mean(Ks), diag(nrow(Ks))), integer(0), method, ncores = n)[, 1]
       }
@@ -563,7 +579,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                            seed = seed, verbose = verbose)
   obj <- SIGNAL_kernel(obj, kernels = kernels, approximation = approximation,
                        celltype_distance = celltype_distance,
-                       max_cells = max_cells, verbose = verbose)
+                       max_cells = max_cells, ncores = ncores, verbose = verbose)
   SIGNAL_test(obj, method = method,
               ncores = ncores, parallel = parallel, verbose = verbose)
 }

@@ -193,7 +193,11 @@
   s <- .signal_setup(Klist, test_index, method, overall)
   if (is.null(s)) return(matrix(NA_real_, nrow(Y), 1 + length(test_index)))
   G <- nrow(Y)
-  if (ncores <= 1 || G <= 1) return(.signal_genes(Y, s, method))
+  # Fewer genes than cores, or no fork (Windows): test the genes one at a time
+  # on ncores BLAS threads, which needs no memory for workers
+  if (ncores <= 1 || G < ncores || .Platform$OS.type == "windows") {
+    return(.signal_genes(Y, s, method))
+  }
   .set_blas_threads(1)
   res <- .par_lapply(seq_len(G), function(g) .signal_genes(Y[g, , drop = FALSE], s, method),
                      ncores, progress)
@@ -204,6 +208,13 @@
 # the setting at the time of forking.
 .get_blas_threads <- function() {
   c(blas = RhpcBLASctl::blas_get_num_procs(), omp = RhpcBLASctl::omp_get_max_threads())
+}
+.with_blas_threads <- function(n, expr) {
+  if (n <= 1) return(expr)
+  blas <- .get_blas_threads()
+  on.exit(.set_blas_threads(blas))
+  .set_blas_threads(n)
+  expr
 }
 .set_blas_threads <- function(n) {
   if (length(n) == 1) n <- c(blas = n, omp = n)

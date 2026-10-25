@@ -99,15 +99,9 @@ analyses. Davies for the overall test and Liu for the cell-type,
 spatial and ctSVG tests.
 }}
 
-\item{ncores}{Number of cores. Defaults to all available cores: the
-Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
-\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). The workers are
-forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}). Windows
-cannot fork, so there the computation runs on one core. How the cores are
-used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
-MKL), each kernel's set-up uses \code{ncores} BLAS threads and the workers one
-BLAS thread each (package RhpcBLASctl); the previous setting is restored
-afterwards.}
+\item{ncores}{Number of BLAS threads used to build the kernels (with a
+multithreaded BLAS); the previous setting is restored afterwards. Defaults
+to all available cores, as in \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}
 
 \item{parallel}{How the cores are used:
 \itemize{
