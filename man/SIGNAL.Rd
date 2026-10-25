@@ -99,9 +99,24 @@ analyses. Davies for the overall test and Liu for the cell-type,
 spatial and ctSVG tests.
 }}
 
-\item{ncores}{Number of BLAS threads used to build the kernels (with a
-multithreaded BLAS); the previous setting is restored afterwards. Defaults
-to all available cores, as in \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}
+\item{ncores}{Number of cores. Defaults to all available cores: the
+Slurm allocation (\code{SLURM_CPUS_PER_TASK}) when set, otherwise
+\code{\link[parallel:detectCores]{parallel::detectCores()}} (2 under \verb{R CMD check}). How the cores are
+used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
+MKL), the threads are set by SIGNAL (package RhpcBLASctl) and restored
+afterwards:
+\itemize{
+\item each kernel's set-up runs on \code{ncores} BLAS threads;
+\item the genes are split over \verb{min(ncores, number of genes)} forked workers
+that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}), one BLAS thread each;
+each worker needs about 7 n x n matrices (about 5 GB at n = 9,000), so
+lower \code{ncores} if memory is short;
+\item a single gene, or Windows (which cannot fork), runs on \code{ncores} BLAS
+threads.
+}
+
+So \code{OPENBLAS_NUM_THREADS=1} (or \code{OMP_NUM_THREADS=1}) can be kept in the
+environment for code outside SIGNAL's tests.}
 
 \item{parallel}{How the cores are used:
 \itemize{

@@ -212,13 +212,6 @@
   # the one in effect, so take the smaller of the two.
   c(blas = min(RhpcBLASctl::blas_get_num_procs(), omp), omp = omp)
 }
-.with_blas_threads <- function(n, expr) {
-  if (n <= 1) return(expr)
-  blas <- .get_blas_threads()
-  on.exit(.set_blas_threads(blas))
-  .set_blas_threads(n)
-  expr
-}
 .set_blas_threads <- function(n) {
   if (length(n) == 1) n <- c(blas = n, omp = n)
   RhpcBLASctl::blas_set_num_threads(n[["blas"]])

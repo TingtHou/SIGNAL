@@ -172,23 +172,14 @@ SIGNAL_preprocess <- function(object, filter = c("min_cells", "celina"),
 #'   proportions), `"hamming"` or `"euclidean"`; see [build_celltype_kernel()].
 #' @param basis_number,standardize Passed to [build_spatial_kernels()]
 #'   (`standardize` also to [build_gaussian_kernel()]).
-#' @param ncores Number of BLAS threads used to build the kernels (with a
-#'   multithreaded BLAS); the previous setting is restored afterwards. Defaults
-#'   to all available cores, as in [SIGNAL_test()].
 #' @param verbose Print progress messages.
 #' @return The object with `celltype_kernel` and `spatial_kernels` filled in.
 #' @export
 SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_cells = 6000,
                           bandwidth = NULL, tol = 1e-4,
                           celltype_distance = c("auto", "hamming", "euclidean"), basis_number = 4,
-                          standardize = TRUE, ncores = NULL, verbose = TRUE) {
+                          standardize = TRUE, verbose = TRUE) {
   celltype_distance <- match.arg(celltype_distance)
-  if (is.null(ncores)) ncores <- .default_cores()
-  if (ncores > 1) {
-    blas <- .get_blas_threads()
-    on.exit(.set_blas_threads(blas))
-    .set_blas_threads(ncores)
-  }
   if (celltype_distance == "auto") {
     celltype_distance <- if (all(object@celltype %in% c(0, 1))) "hamming" else "euclidean"
   }
@@ -288,8 +279,7 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'     threads.
 #'
 #'   So `OPENBLAS_NUM_THREADS=1` (or `OMP_NUM_THREADS=1`) can be kept in the
-#'   environment for code outside SIGNAL; [SIGNAL_kernel()] also builds the
-#'   kernels on `ncores` BLAS threads.
+#'   environment for code outside SIGNAL's tests.
 #' @param parallel How the cores are used:
 #'   * `"auto"` (default): whichever of the two below is expected to be
 #'     faster, from the number of kernels, genes and cores and the cost of
@@ -500,7 +490,7 @@ SIGNAL_celltype <- function(object, genes = NULL, level = c("auto", "single_cell
       storage.mode(counts) <- "double"
       Yc <- .transform_counts(counts, pp$transform, pp$n_imp)
       Yc <- Yc[apply(Yc, 1, function(y) any(y != y[1])), , drop = FALSE]
-      kernels <- .with_blas_threads(ncores, .subset_spatial_kernels(object, cells))
+      kernels <- .subset_spatial_kernels(object, cells)
       test <- function(Yg, Ks, n) {
         .signal_engine(Yg, list(Ks - mean(Ks), diag(nrow(Ks))), integer(0), method, ncores = n)[, 1]
       }
@@ -580,7 +570,7 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
                            seed = seed, verbose = verbose)
   obj <- SIGNAL_kernel(obj, kernels = kernels, approximation = approximation,
                        celltype_distance = celltype_distance,
-                       max_cells = max_cells, ncores = ncores, verbose = verbose)
+                       max_cells = max_cells, verbose = verbose)
   SIGNAL_test(obj, method = method,
               ncores = ncores, parallel = parallel, verbose = verbose)
 }

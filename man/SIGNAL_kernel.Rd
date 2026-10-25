@@ -14,7 +14,6 @@ SIGNAL_kernel(
   celltype_distance = c("auto", "hamming", "euclidean"),
   basis_number = 4,
   standardize = TRUE,
-  ncores = NULL,
   verbose = TRUE
 )
 }
@@ -49,10 +48,6 @@ proportions), \code{"hamming"} or \code{"euclidean"}; see \code{\link[=build_cel
 
 \item{basis_number, standardize}{Passed to \code{\link[=build_spatial_kernels]{build_spatial_kernels()}}
 (\code{standardize} also to \code{\link[=build_gaussian_kernel]{build_gaussian_kernel()}}).}
-
-\item{ncores}{Number of BLAS threads used to build the kernels (with a
-multithreaded BLAS); the previous setting is restored afterwards. Defaults
-to all available cores, as in \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}
 
 \item{verbose}{Print progress messages.}
 }

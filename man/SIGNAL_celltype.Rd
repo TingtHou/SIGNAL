@@ -64,8 +64,7 @@ threads.
 }
 
 So \code{OPENBLAS_NUM_THREADS=1} (or \code{OMP_NUM_THREADS=1}) can be kept in the
-environment for code outside SIGNAL; \code{\link[=SIGNAL_kernel]{SIGNAL_kernel()}} also builds the
-kernels on \code{ncores} BLAS threads.}
+environment for code outside SIGNAL's tests.}
 
 \item{parallel}{How the cores are used:
 \itemize{
