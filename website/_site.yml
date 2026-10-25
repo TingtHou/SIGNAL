@@ -9,14 +9,15 @@ navbar:
       href: Installation.html
     - text: "Getting started"
       href: tutorial.html
-    - text: "Single cell level"
+    - text: "Real data"
       menu:
+        - text: "Single cell level"
         - text: "Axolotl brain (Stereo-seq)"
           href: Artista.html
         - text: "Mouse hypothalamus (MERFISH)"
           href: Mouse.html
-    - text: "Spot level"
-      menu:
+        - text: "---------"
+        - text: "Spot level"
         - text: "Mouse hippocampus (STARmap PLUS)"
           href: Alzheimer.html
     - text: "License"
