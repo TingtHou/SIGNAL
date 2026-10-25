@@ -207,7 +207,11 @@
 # BLAS/OpenMP threads of this R process (RhpcBLASctl). Forked workers inherit
 # the setting at the time of forking.
 .get_blas_threads <- function() {
-  c(blas = RhpcBLASctl::blas_get_num_procs(), omp = RhpcBLASctl::omp_get_max_threads())
+  omp <- RhpcBLASctl::omp_get_max_threads()
+  # Under some BLAS builds (e.g. FlexiBLAS) blas_get_num_procs() reports the
+  # number of processors, not the thread setting; the OpenMP setting is then
+  # the one in effect, so take the smaller of the two.
+  c(blas = min(RhpcBLASctl::blas_get_num_procs(), omp), omp = omp)
 }
 .with_blas_threads <- function(n, expr) {
   if (n <= 1) return(expr)
