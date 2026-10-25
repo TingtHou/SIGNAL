@@ -190,9 +190,8 @@ select_bandwidth <- function(counts, genes = NULL) {
 # Assemble the kernel list for one spatial kernel: cell type, spatial,
 # interaction and identity (residual). The three effect kernels are shifted to
 # zero grand mean.
-.signal_kernels <- function(K_celltype, K_spatial, K_interaction_celltype = K_celltype) {
-  K_int <- (K_interaction_celltype - mean(K_interaction_celltype)) *
-    (K_spatial - mean(K_spatial))
+.signal_kernels <- function(K_celltype, K_spatial) {
+  K_int <- (K_celltype - mean(K_celltype)) * (K_spatial - mean(K_spatial))
   list(
     K_celltype - mean(K_celltype),
     K_spatial - mean(K_spatial),

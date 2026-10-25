@@ -19,8 +19,6 @@ navbar:
       menu:
         - text: "Mouse hippocampus (STARmap PLUS)"
           href: Alzheimer.html
-    - text: "Large data"
-      href: Parallel.html
     - text: "License"
       href: license.html
   right:

@@ -357,9 +357,6 @@ div.tocify {
   </ul>
 </li>
 <li>
-  <a href="Parallel.html">Large data</a>
-</li>
-<li>
   <a href="license.html">License</a>
 </li>
       </ul>
@@ -449,8 +446,7 @@ cell-type labels and a Gaussian kernel for cell-type proportions
 (<code>celltype_distance = "auto"</code>). The <strong>spatial
 kernels</strong> are 11 kernels at different scales: 5 Gaussian, 5
 Matérn and a thin-plate spline. With more than 6,000 cells, SIGNAL uses
-a single Gaussian kernel instead (see <a href="Parallel.html">Large
-data</a>).</p>
+a single Gaussian kernel instead.</p>
 <pre class="r"><code>obj &lt;- SIGNAL_kernel(obj)
 #&gt; Building spatial kernels for 400 cells
 names(obj@spatial_kernels)
@@ -534,25 +530,6 @@ expression in the hotspot for <code>CT1</code> only also raises
 <p><img src="tutorial_files/figure-html/unnamed-chunk-10-1.png" alt="" width="672" /></p>
 <p><code>gene51</code> (a spatial gene) is high in the hotspot for every
 cell type; <code>gene61</code> (a ctSVG) only for <code>CT1</code>.</p>
-</div>
-<div id="step-7-find-the-cell-types-behind-each-ctsvg"
-class="section level2">
-<h2>Step 7: find the cell types behind each ctSVG</h2>
-<p><code>SIGNAL_celltype()</code> tests each gene once per cell type,
-using an interaction kernel built from that cell type alone. Here it
-tests the detected genes with a ctSVG p-value below 0.05:</p>
-<pre class="r"><code>ctsvg &lt;- detected[res[detected, &quot;p_ctSVG&quot;] &lt; 0.05]
-obj &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2, verbose = FALSE)
-signif(head(obj@celltype_result), 2)
-#&gt;            CT1  CT2  CT3  CT4
-#&gt; gene61 1.1e-16 0.96 0.30 0.56
-#&gt; gene62 1.0e-15 0.93 0.92 0.95
-#&gt; gene63 1.1e-04 0.53 0.93 0.82
-#&gt; gene64 4.4e-05 0.89 0.73 0.49
-#&gt; gene65 7.2e-05 0.38 0.53 0.86
-#&gt; gene66 1.1e-16 0.99 0.90 0.95</code></pre>
-<p>The small p-values are in the <code>CT1</code> column, the cell type
-that carries the simulated pattern.</p>
 </div>
 <div id="one-step-analysis" class="section level2">
 <h2>One-step analysis</h2>

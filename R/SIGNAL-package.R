@@ -9,10 +9,10 @@
 #' obj <- createSIGNALobject(counts, location, celltype)
 #' obj <- SIGNAL_preprocess(obj)
 #' obj <- SIGNAL_kernel(obj)
-#' obj <- SIGNAL_test(obj)
-#' obj <- SIGNAL_celltype(obj)
+#' obj <- SIGNAL_overall(obj)
+#' obj <- SIGNAL_component(obj, genes = detected)
 #' ```
-#' or [SIGNAL()] for the first four steps in one call.
+#' or [SIGNAL()] for all steps, with the component tests for all genes, in one call.
 #'
 #' @keywords internal
 #' @importFrom methods setClass setMethod new is show

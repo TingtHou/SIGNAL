@@ -32,17 +32,6 @@ test_that("step-by-step workflow equals the wrapper and is reproducible", {
   expect_equal(ncol(obj@pvalues_by_kernel$overall), 2)
 })
 
-test_that("SIGNAL_celltype returns a genes x cell types matrix", {
-  sim <- simulate_signal_data(n_cells = 80, n_genes = c(null = 2, ctSVG = 2), seed = 6)
-  obj <- createSIGNALobject(sim$counts, sim$location, sim$celltype)
-  obj <- SIGNAL_preprocess(obj, seed = 1, verbose = FALSE)
-  obj <- SIGNAL_kernel(obj, kernels = build_spatial_kernels(sim$location)[1:2],
-                       verbose = FALSE)
-  obj <- SIGNAL_celltype(obj, genes = c("gene3", "gene4"), verbose = FALSE)
-  expect_equal(dim(obj@celltype_result), c(2, 4))
-  expect_equal(colnames(obj@celltype_result), levels(sim$celltype))
-})
-
 test_that("sparse counts give the same result as dense counts", {
   skip_if_not_installed("Matrix")
   sim <- simulate_signal_data(n_cells = 60, n_genes = c(null = 3), seed = 8)

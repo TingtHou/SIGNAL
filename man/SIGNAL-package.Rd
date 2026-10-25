@@ -15,11 +15,11 @@ A typical analysis:
 \if{html}{\out{<div class="sourceCode">}}\preformatted{obj <- createSIGNALobject(counts, location, celltype)
 obj <- SIGNAL_preprocess(obj)
 obj <- SIGNAL_kernel(obj)
-obj <- SIGNAL_test(obj)
-obj <- SIGNAL_celltype(obj)
+obj <- SIGNAL_overall(obj)
+obj <- SIGNAL_component(obj, genes = detected)
 }\if{html}{\out{</div>}}
 
-or \code{\link[=SIGNAL]{SIGNAL()}} for the first four steps in one call.
+or \code{\link[=SIGNAL]{SIGNAL()}} for all steps, with the component tests for all genes, in one call.
 }
 \seealso{
 Useful links:

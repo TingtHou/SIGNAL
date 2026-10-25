@@ -57,7 +57,7 @@ The **cell-type kernel** is a Hamming kernel for cell-type labels and a
 Gaussian kernel for cell-type proportions (`celltype_distance = "auto"`). The
 **spatial kernels** are 11 kernels at different scales: 5 Gaussian, 5 Matérn
 and a thin-plate spline. With more than 6,000 cells, SIGNAL uses a single
-Gaussian kernel instead (see [Large data](Parallel.html)).
+Gaussian kernel instead.
 
 ```{r}
 obj <- SIGNAL_kernel(obj)
@@ -129,21 +129,6 @@ SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 
 `gene51` (a spatial gene) is high in the hotspot for every cell type;
 `gene61` (a ctSVG) only for `CT1`.
-
-## Step 7: find the cell types behind each ctSVG
-
-`SIGNAL_celltype()` tests each gene once per cell type, using an interaction
-kernel built from that cell type alone. Here it tests the detected genes with
-a ctSVG p-value below 0.05:
-
-```{r}
-ctsvg <- detected[res[detected, "p_ctSVG"] < 0.05]
-obj <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2, verbose = FALSE)
-signif(head(obj@celltype_result), 2)
-```
-
-The small p-values are in the `CT1` column, the cell type that carries the
-simulated pattern.
 
 ## One-step analysis
 

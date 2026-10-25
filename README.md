@@ -1,7 +1,7 @@
 # SIGNAL: Spatial varIable Gene detectioN And cLassification
 ![SIGNAL workflow](man/figures/SIGNAL_Fig1_overview.svg)
 
-SIGNAL is a statistical method to detect spatially variable genes in single-cell resolution spatial transcriptomics and classify them by the source of their spatial variation. For each gene, SIGNAL fits a multi-kernel variance component model with a cell-type kernel, a spatial kernel and their interaction. An overall test detects any effect. Separate tests then classify each detected gene as having a **cell-type** effect (expression differs between cell types), a **spatial** effect (expression varies over space for all cell types) and/or a **cell-type-specific spatial** effect (ctSVG). A second-stage test finds the cell types that carry each ctSVG pattern. Results are combined across a panel of spatial kernels with the Cauchy combination test.
+SIGNAL is a statistical method to detect spatially variable genes in single-cell resolution spatial transcriptomics and classify them by the source of their spatial variation. For each gene, SIGNAL fits a multi-kernel variance component model with a cell-type kernel, a spatial kernel and their interaction. An overall test detects any effect. Separate tests then classify each detected gene as having a **cell-type** effect (expression differs between cell types), a **spatial** effect (expression varies over space for all cell types) and/or a **cell-type-specific spatial** effect (ctSVG). Results are combined across a panel of spatial kernels with the Cauchy combination test.
 
 **Reference**: Hou, T. *et al.* SIGNAL: Spatial varIable Gene detectioN And cLassification. (in preparation)
 
@@ -34,9 +34,5 @@ detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
 obj <- SIGNAL_component(obj, genes = detected)   # step 2: cell-type, spatial, ctSVG tests
 
 head(obj@result)          # genes x p-values: p_overall, p_celltype, p_spatial, p_ctSVG
-
-ctsvg <- detected[obj@result[detected, "p_ctSVG"] < 0.05]
-obj <- SIGNAL_celltype(obj, genes = ctsvg)  # which cell types carry each ctSVG
-obj@celltype_result       # genes x cell types p-values
 SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 ```

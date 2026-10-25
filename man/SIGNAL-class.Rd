@@ -39,9 +39,6 @@ analysis. Create one with \code{\link[=createSIGNALobject]{createSIGNALobject()}
 \item{\code{pvalues_by_kernel}}{List of genes x kernels p-value matrices for the
 overall, cell-type, spatial and ctSVG tests, set by \code{\link[=SIGNAL_test]{SIGNAL_test()}}.}
 
-\item{\code{celltype_result}}{Genes x cell-types matrix of ctSVG p-values, set by
-\code{\link[=SIGNAL_celltype]{SIGNAL_celltype()}}.}
-
 \item{\code{params}}{Settings used in each step.}
 }}
 

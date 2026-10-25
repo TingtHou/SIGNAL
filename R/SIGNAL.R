@@ -407,54 +407,6 @@ SIGNAL_component <- function(object, genes = NULL,
   object
 }
 
-#' Find the cell types behind each ctSVG
-#'
-#' Second-stage test for genes with a cell-type-specific spatial pattern. For
-#' each cell type `c`, the interaction kernel is built from that cell type's
-#' indicator kernel \eqn{x_c x_c^T / C} instead of the full cell-type kernel,
-#' and only the interaction component is tested. A small p-value means the
-#' gene has a spatial pattern specific to cell type `c`.
-#'
-#' @param object A [SIGNAL-class] object after [SIGNAL_kernel()].
-#' @param genes Genes to test, usually those with a small ctSVG p-value from
-#'   [SIGNAL_test()]. Defaults to all genes.
-#' @inheritParams SIGNAL_test
-#' @return The object with `celltype_result`, a genes x cell-types matrix of
-#'   Cauchy-combined p-values, filled in.
-#' @export
-SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepoint", "liu", "davies_liu"),
-                            ncores = NULL, parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
-  method <- match.arg(method)
-  .check_ready(object)
-  Y <- object@gene_expression
-  if (is.null(ncores)) ncores <- .default_cores()
-  cores <- .split_cores(ncores, parallel, length(object@spatial_kernels), nrow(Y), method, ncol(Y))
-  if (is.null(genes)) genes <- rownames(Y)
-  missing_genes <- setdiff(genes, rownames(Y))
-  if (length(missing_genes) > 0) {
-    stop("Genes not found after preprocessing: ",
-         paste(utils::head(missing_genes), collapse = ", "))
-  }
-  X <- object@celltype
-  out <- matrix(NA_real_, length(genes), ncol(X), dimnames = list(genes, colnames(X)))
-  if (length(genes) == 0) {
-    if (verbose) message("No genes to test.")
-  } else {
-    Yg <- Y[genes, , drop = FALSE]
-    for (c in seq_len(ncol(X))) {
-      if (verbose) message("Cell type ", colnames(X)[c])
-      K_c <- tcrossprod(X[, c]) / ncol(X)
-      job <- .kernel_job(Yg, object@celltype_kernel, 3, method, ncores = cores$genes,
-                         K_interaction = K_c, column = 2, overall = FALSE)
-      per_kernel <- .map_kernels(object@spatial_kernels, cores$kernels, FALSE, job)
-      out[, c] <- combine_pvalues(do.call(cbind, per_kernel))
-    }
-  }
-  object@celltype_result <- out
-  object@params$celltype <- list(method = method)
-  object
-}
-
 #' Run the full SIGNAL pipeline
 #'
 #' Convenience wrapper for [createSIGNALobject()], [SIGNAL_preprocess()],
@@ -552,13 +504,11 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
 
 # P-values for one spatial kernel.
 .kernel_job <- function(Y, K_celltype, test_index, method, ncores = 1, progress = FALSE,
-                        K_interaction = NULL, column = NULL, overall = TRUE) {
+                        overall = TRUE) {
   force(Y); force(K_celltype)
   function(Ks) {
-    K_int <- if (is.null(K_interaction)) K_celltype else K_interaction
-    P <- .signal_engine(Y, .signal_kernels(K_celltype, Ks, K_int), test_index, method,
-                        ncores = ncores, progress = progress, overall = overall)
-    if (is.null(column)) P else P[, column]
+    .signal_engine(Y, .signal_kernels(K_celltype, Ks), test_index, method,
+                   ncores = ncores, progress = progress, overall = overall)
   }
 }
 

@@ -36,14 +36,12 @@ components are estimated by MINQUE, and SIGNAL runs
 The test statistics follow mixtures of chi-square distributions, whose tail
 probabilities are computed with Davies' method. Results are combined over a
 panel of 11 spatial kernels (Gaussian, Matérn and thin-plate spline) with the
-Cauchy combination test. A second-stage test finds the cell types that carry
-each ctSVG pattern.
+Cauchy combination test.
 
 ## What SIGNAL returns
 
 A table with one row per gene and the four p-values (`p_overall`,
-`p_celltype`, `p_spatial`, `p_ctSVG`), and, for selected genes, a
-genes $\times$ cell types table of cell-type-specific p-values.
+`p_celltype`, `p_spatial`, `p_ctSVG`).
 
 ## Tutorials
 
@@ -54,7 +52,6 @@ genes $\times$ cell types table of cell-type-specific p-values.
 | [Axolotl brain](Artista.html) | Stereo-seq, 4,410 cells, cell-type labels | Single-cell data, 11 spatial kernels, batches of genes on a cluster |
 | [Mouse hypothalamus](Mouse.html) | MERFISH, 5,520 cells, cell-type labels | Single-cell data, a single Gaussian spatial kernel |
 | [Mouse hippocampus](Alzheimer.html) | STARmap PLUS, 9,244 cells, cell-type proportions | Spot-level data, large data |
-| [Large data](Parallel.html) | | Parallel computing, memory and run time |
 
 The processed real data used in the tutorials can be downloaded from the
 [SIGNAL real data folder](https://drive.google.com/drive/folders/1-j6l-KBT9dR_p2RB2RVb_5q9Ig2GdRn3)

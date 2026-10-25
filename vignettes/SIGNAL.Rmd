@@ -170,21 +170,6 @@ SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 `gene51` is high in the hotspot for every cell type. `gene61` is high in the
 hotspot only for CT1.
 
-## Step 6: find the cell types behind each ctSVG
-
-`SIGNAL_celltype()` tests each ctSVG once per cell type, using an interaction
-kernel built from that cell type alone. Here it tests the detected genes with
-a ctSVG p-value below 0.05:
-
-```{r}
-ctsvg <- detected[obj@result[detected, "p_ctSVG"] < 0.05]
-obj <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2)
-signif(obj@celltype_result, 2)
-```
-
-The small p-values are in the CT1 column, the cell type that carries the
-simulated pattern.
-
 ## One-step analysis
 
 `SIGNAL()` runs steps 1–5 in one call, with the overall and component tests
