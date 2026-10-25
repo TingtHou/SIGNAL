@@ -280,11 +280,13 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   MKL), the threads are set by SIGNAL (package RhpcBLASctl) and restored
 #'   afterwards:
 #'   * each kernel's set-up runs on `ncores` BLAS threads;
-#'   * with at least `ncores` genes, the genes are split over `ncores` forked
-#'     workers that share memory ([pbmcapply::pbmclapply()]), one BLAS thread
-#'     each;
-#'   * with fewer genes than `ncores`, or on Windows (which cannot fork), the
-#'     genes are tested one at a time on `ncores` BLAS threads.
+#'   * the genes are split over `min(ncores, number of genes)` forked workers
+#'     that share memory ([pbmcapply::pbmclapply()]), one BLAS thread each,
+#'     limited to as many workers as fit in the available memory (the Slurm
+#'     job's limit when set; each worker needs about 7 n x n matrices);
+#'   * with a single gene, too little memory for two workers, or on Windows
+#'     (which cannot fork), the genes are tested one at a time on `ncores`
+#'     BLAS threads.
 #'
 #'   So `OPENBLAS_NUM_THREADS=1` (or `OMP_NUM_THREADS=1`) can be kept in the
 #'   environment for code outside SIGNAL; [SIGNAL_kernel()] also builds the
@@ -627,8 +629,17 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
 .available_memory_gb <- function() {
   if (!file.exists("/proc/meminfo")) return(NA_real_)
   m <- grep("^MemAvailable:", readLines("/proc/meminfo"), value = TRUE)
-  if (!length(m)) return(NA_real_)
-  as.numeric(gsub("[^0-9]", "", m)) / 1024^2
+  free <- if (length(m)) as.numeric(gsub("[^0-9]", "", m)) / 1024^2 else NA_real_
+  # Under Slurm the job's limit, not the node's free memory, is what counts
+  num <- function(x) suppressWarnings(as.numeric(Sys.getenv(x)))
+  limit_mb <- num("SLURM_MEM_PER_NODE")
+  if (is.na(limit_mb)) limit_mb <- num("SLURM_MEM_PER_CPU") * num("SLURM_CPUS_PER_TASK")
+  if (!is.na(limit_mb)) {
+    rss <- grep("^VmRSS:", readLines("/proc/self/status"), value = TRUE)
+    used_gb <- if (length(rss)) as.numeric(gsub("[^0-9]", "", rss)) / 1024^2 else 0
+    free <- min(free, limit_mb / 1024 - used_gb, na.rm = TRUE)
+  }
+  free
 }
 
 # All available cores: the Slurm allocation if set, otherwise the machine's

@@ -48,11 +48,13 @@ MKL), the threads are set by SIGNAL (package RhpcBLASctl) and restored
 afterwards:
 \itemize{
 \item each kernel's set-up runs on \code{ncores} BLAS threads;
-\item with at least \code{ncores} genes, the genes are split over \code{ncores} forked
-workers that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}), one BLAS thread
-each;
-\item with fewer genes than \code{ncores}, or on Windows (which cannot fork), the
-genes are tested one at a time on \code{ncores} BLAS threads.
+\item the genes are split over \verb{min(ncores, number of genes)} forked workers
+that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}), one BLAS thread each,
+limited to as many workers as fit in the available memory (the Slurm
+job's limit when set; each worker needs about 7 n x n matrices);
+\item with a single gene, too little memory for two workers, or on Windows
+(which cannot fork), the genes are tested one at a time on \code{ncores}
+BLAS threads.
 }
 
 So \code{OPENBLAS_NUM_THREADS=1} (or \code{OMP_NUM_THREADS=1}) can be kept in the

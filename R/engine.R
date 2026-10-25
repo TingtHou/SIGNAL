@@ -193,15 +193,26 @@
   s <- .signal_setup(Klist, test_index, method, overall)
   if (is.null(s)) return(matrix(NA_real_, nrow(Y), 1 + length(test_index)))
   G <- nrow(Y)
-  # Fewer genes than cores, or no fork (Windows): test the genes one at a time
-  # on ncores BLAS threads, which needs no memory for workers
-  if (ncores <= 1 || G < ncores || .Platform$OS.type == "windows") {
-    return(.signal_genes(Y, s, method))
-  }
+  workers <- .gene_workers(ncores, G, nrow(Klist[[1]]))
+  # One worker (one gene, too little memory, or Windows): test the genes one
+  # at a time on ncores BLAS threads
+  if (workers <= 1) return(.signal_genes(Y, s, method))
+  # Otherwise forked workers, one BLAS thread each
   .set_blas_threads(1)
   res <- .par_lapply(seq_len(G), function(g) .signal_genes(Y[g, , drop = FALSE], s, method),
-                     ncores, progress)
+                     workers, progress)
   do.call(rbind, res)
+}
+
+# Number of forked gene workers: one per gene up to ncores, as many as fit in
+# memory (each holds about 7 n x n matrices besides the shared set-up).
+.gene_workers <- function(ncores, G, n) {
+  if (.Platform$OS.type == "windows") return(1L)
+  w <- min(ncores, G)
+  if (w <= 1) return(1L)
+  free_gb <- .available_memory_gb()
+  if (!is.na(free_gb)) w <- min(w, floor(0.9 * free_gb / (7 * 8 * n^2 / 1024^3)))
+  as.integer(max(1, w))
 }
 
 # BLAS/OpenMP threads of this R process (RhpcBLASctl). Forked workers inherit

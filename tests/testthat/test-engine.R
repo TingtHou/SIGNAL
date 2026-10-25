@@ -233,3 +233,15 @@ test_that("parallel option splits cores between kernels and genes", {
   expect_equal(SIGNAL:::.split_cores(4, "auto", 11, 2, "davies_liu", 100), list(kernels = 4, genes = 1))
   expect_equal(SIGNAL:::.split_cores(4, "auto", 11, 5000, "davies", 100), list(kernels = 1, genes = 4))
 })
+
+test_that("gene workers: one per gene up to ncores, one for a single gene or on Windows", {
+  w <- SIGNAL:::.gene_workers
+  expect_equal(w(20, 1, 100), 1L)
+  if (.Platform$OS.type == "windows") {
+    expect_equal(w(4, 10, 100), 1L)
+  } else {
+    expect_equal(w(4, 10, 100), 4L)
+    expect_equal(w(20, 5, 100), 5L)
+    expect_equal(w(20, 5, 1e6), 1L)    # 1e6 cells: no room for two workers
+  }
+})
