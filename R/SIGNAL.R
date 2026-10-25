@@ -422,9 +422,10 @@ SIGNAL_component <- function(object, genes = NULL,
 #'   \item{Single-cell data (0/1 cell-type labels)}{Only the cells of type
 #'     `c` are used. Their expression is transformed again within the subset
 #'     (with the settings of [SIGNAL_preprocess()]), the spatial kernels are
-#'     built from their coordinates (with the settings of [SIGNAL_kernel()]),
-#'     and the model \eqn{y \sim N(0, \tau K_{spatial} + \sigma^2 I)} is
-#'     tested for \eqn{\tau = 0}.}
+#'     built from their coordinates (with the settings of [SIGNAL_kernel()])
+#'     and mean-centred, and the model
+#'     \eqn{y \sim N(0, \tau K_{spatial} + \sigma^2 I)} is tested for
+#'     \eqn{\tau = 0}.}
 #'   \item{Spot-level data (cell-type proportions)}{All spots are used. The
 #'     interaction kernel of [SIGNAL_test()] is built from cell type `c`
 #'     alone, \eqn{(x_c x_c^T) \circ K_{spatial}} with both factors
@@ -484,7 +485,7 @@ SIGNAL_celltype <- function(object, genes = NULL, level = c("auto", "single_cell
       Yc <- Yc[apply(Yc, 1, function(y) any(y != y[1])), , drop = FALSE]
       kernels <- .subset_spatial_kernels(object, cells)
       test <- function(Yg, Ks, n) {
-        .signal_engine(Yg, list(Ks, diag(nrow(Ks))), integer(0), method, ncores = n)[, 1]
+        .signal_engine(Yg, list(Ks - mean(Ks), diag(nrow(Ks))), integer(0), method, ncores = n)[, 1]
       }
     } else {
       cells <- rep(TRUE, nrow(X))

@@ -49,7 +49,7 @@ test_that("SIGNAL_celltype finds the cell type of each ctSVG", {
   cells <- obj@celltype[, "CT1"] == 1
   y <- qnorm((rank(SIGNAL_example$counts["gene61", cells]) - 0.5) / sum(cells))
   Ks <- build_spatial_kernels(obj@location[cells, ])   # rebuilt for the subset
-  p <- vapply(Ks, function(K) SIGNAL:::.signal_engine(t(y), list(K, diag(sum(cells))),
+  p <- vapply(Ks, function(K) SIGNAL:::.signal_engine(t(y), list(K - mean(K), diag(sum(cells))),
                                                        integer(0))[, 1], numeric(1))
   expect_equal(sc@celltype_result["gene61", "CT1"], combine_pvalues(t(p)))
 

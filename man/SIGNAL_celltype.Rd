@@ -90,9 +90,10 @@ cell type. Usually run on the genes with a small ctSVG p-value from
 \item{Single-cell data (0/1 cell-type labels)}{Only the cells of type
 \code{c} are used. Their expression is transformed again within the subset
 (with the settings of \code{\link[=SIGNAL_preprocess]{SIGNAL_preprocess()}}), the spatial kernels are
-built from their coordinates (with the settings of \code{\link[=SIGNAL_kernel]{SIGNAL_kernel()}}),
-and the model \eqn{y \sim N(0, \tau K_{spatial} + \sigma^2 I)} is
-tested for \eqn{\tau = 0}.}
+built from their coordinates (with the settings of \code{\link[=SIGNAL_kernel]{SIGNAL_kernel()}})
+and mean-centred, and the model
+\eqn{y \sim N(0, \tau K_{spatial} + \sigma^2 I)} is tested for
+\eqn{\tau = 0}.}
 \item{Spot-level data (cell-type proportions)}{All spots are used. The
 interaction kernel of \code{\link[=SIGNAL_test]{SIGNAL_test()}} is built from cell type \code{c}
 alone, \eqn{(x_c x_c^T) \circ K_{spatial}} with both factors
