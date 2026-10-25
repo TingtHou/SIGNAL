@@ -472,8 +472,17 @@ genes, with the same memory per worker.</p>
 <pre class="r"><code>obj &lt;- SIGNAL_component(obj, genes = detected, ncores = 12)
 write.csv(obj@result, &quot;hippocampus_signal_pvalues.csv&quot;)</code></pre>
 </div>
-<div id="step-6-visualise-a-gene" class="section level2">
-<h2>Step 6: visualise a gene</h2>
+<div id="step-6-find-the-cell-types-behind-each-ctsvg"
+class="section level2">
+<h2>Step 6: find the cell types behind each ctSVG</h2>
+<p>With cell-type proportions, all spots are used and each cell type is
+tested with an interaction kernel built from its proportions.</p>
+<pre class="r"><code>ctsvg &lt;- detected[obj@result[detected, &quot;p_ctSVG&quot;] &lt; 0.05]
+obj   &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 12)
+obj@celltype_result</code></pre>
+</div>
+<div id="step-7-visualise-a-gene" class="section level2">
+<h2>Step 7: visualise a gene</h2>
 <pre class="r"><code>SIGNAL_plotGene(obj, &quot;Apoe&quot;, point_size = 0.4)</code></pre>
 <p><img src="figures/alzheimer_Apoe.png" alt="" width="100%" /></p>
 </div>

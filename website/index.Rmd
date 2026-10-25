@@ -36,12 +36,16 @@ components are estimated by MINQUE, and SIGNAL runs
 The test statistics follow mixtures of chi-square distributions, whose tail
 probabilities are computed with Davies' method. Results are combined over a
 panel of 11 spatial kernels (Gaussian, Matérn and thin-plate spline) with the
-Cauchy combination test.
+Cauchy combination test. A second-stage test finds the cell types that carry
+each ctSVG pattern: a spatial test within each cell type's cells for
+single-cell data, and a test of one cell type's interaction kernel for
+spot-level data.
 
 ## What SIGNAL returns
 
 A table with one row per gene and the four p-values (`p_overall`,
-`p_celltype`, `p_spatial`, `p_ctSVG`).
+`p_celltype`, `p_spatial`, `p_ctSVG`), and, for selected genes, a
+genes $\times$ cell types table of cell-type-specific p-values.
 
 ## Tutorials
 

@@ -531,6 +531,39 @@ expression in the hotspot for <code>CT1</code> only also raises
 <p><code>gene51</code> (a spatial gene) is high in the hotspot for every
 cell type; <code>gene61</code> (a ctSVG) only for <code>CT1</code>.</p>
 </div>
+<div id="step-7-find-the-cell-types-behind-each-ctsvg"
+class="section level2">
+<h2>Step 7: find the cell types behind each ctSVG</h2>
+<p><code>SIGNAL_celltype()</code> tests each gene once per cell type.
+The test depends on the cell-type input
+(<code>level = "auto"</code>):</p>
+<ul>
+<li><strong>Single-cell data</strong> (cell-type labels): only the cells
+of that type are used. Their expression is transformed again, the
+spatial kernels are built from their coordinates, and the spatial effect
+is tested. A small p-value means the gene varies over space within that
+cell type.</li>
+<li><strong>Spot-level data</strong> (cell-type proportions): all spots
+are used, with an interaction kernel built from that cell type’s
+proportions, and the interaction is tested.</li>
+</ul>
+<p>At the single-cell level, a gene with the same spatial pattern in
+every cell type is significant in every cell type, so run it on the
+ctSVGs. Here it tests the detected genes with a ctSVG p-value below
+0.05:</p>
+<pre class="r"><code>ctsvg &lt;- detected[res[detected, &quot;p_ctSVG&quot;] &lt; 0.05]
+obj &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2, verbose = FALSE)
+signif(head(obj@celltype_result), 2)
+#&gt;            CT1   CT2  CT3  CT4
+#&gt; gene61 3.4e-04 0.720 0.34 0.39
+#&gt; gene62 8.0e-05 0.860 0.59 0.90
+#&gt; gene63 1.9e-04 0.019 0.74 0.54
+#&gt; gene64 1.2e-02 0.670 0.77 0.38
+#&gt; gene65 1.3e-02 0.270 0.58 0.88
+#&gt; gene66 4.3e-05 0.970 0.92 0.99</code></pre>
+<p>The small p-values are in the <code>CT1</code> column, the cell type
+that carries the simulated pattern.</p>
+</div>
 <div id="one-step-analysis" class="section level2">
 <h2>One-step analysis</h2>
 <p><code>SIGNAL()</code> runs steps 1–5 in one call, with the overall
