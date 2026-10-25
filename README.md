@@ -28,11 +28,14 @@ obj <- createSIGNALobject(counts   = SIGNAL_example$counts,    # genes x cells
                           celltype = SIGNAL_example$celltype)  # one label per cell
 obj <- SIGNAL_preprocess(obj, seed = 1)  # filter genes, rank-based normal transform
 obj <- SIGNAL_kernel(obj)                 # cell-type kernel + 11 spatial kernels
-obj <- SIGNAL_test(obj)                   # overall, cell-type, spatial and ctSVG tests
+
+obj <- SIGNAL_overall(obj)                # step 1: overall test, all genes
+detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
+obj <- SIGNAL_component(obj, genes = detected)   # step 2: cell-type, spatial, ctSVG tests
 
 head(obj@result)          # genes x p-values: p_overall, p_celltype, p_spatial, p_ctSVG
 
-ctsvg <- rownames(obj@result)[obj@result$p_ctSVG < 0.05]
+ctsvg <- detected[obj@result[detected, "p_ctSVG"] < 0.05]
 obj <- SIGNAL_celltype(obj, genes = ctsvg)  # which cell types carry each ctSVG
 obj@celltype_result       # genes x cell types p-values
 SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)

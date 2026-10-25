@@ -399,8 +399,14 @@ large data) and about the cube of the number of cells n.</p>
 </div>
 <div id="parallel-computing" class="section level2">
 <h2>Parallel computing</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 20)                     # all genes, 20 workers
-obj &lt;- SIGNAL_test(obj, ncores = 20, parallel = &quot;genes&quot;) # the same, explicitly</code></pre>
+<pre class="r"><code>obj &lt;- SIGNAL_overall(obj, ncores = 20)                     # all genes, 20 workers
+obj &lt;- SIGNAL_overall(obj, ncores = 20, parallel = &quot;genes&quot;) # the same, explicitly
+obj &lt;- SIGNAL_component(obj, genes = detected, ncores = 20)</code></pre>
+<p>The same options apply to <code>SIGNAL_overall()</code>,
+<code>SIGNAL_component()</code>, <code>SIGNAL_test()</code> and
+<code>SIGNAL_celltype()</code>. Running the component tests only for the
+detected genes is the largest saving: they take about three times as
+long as the overall test.</p>
 <ul>
 <li><strong><code>ncores</code></strong> defaults to all available
 cores: the Slurm allocation (<code>SLURM_CPUS_PER_TASK</code>) on a

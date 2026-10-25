@@ -106,7 +106,7 @@ forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply:
 cannot fork, so there the computation runs on one core. How the cores are
 used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
 MKL), each kernel's set-up uses \code{ncores} BLAS threads and the workers one
-BLAS thread each (\link{RhpcBLASctl}); the previous setting is restored
+BLAS thread each (package RhpcBLASctl); the previous setting is restored
 afterwards.}
 
 \item{parallel}{How the cores are used:

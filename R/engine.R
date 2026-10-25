@@ -173,7 +173,9 @@
 
 # Run the overall test and the component tests in `test_index` for all genes
 # (rows of Y) with one kernel list (last kernel = identity).
-# Returns a G x (1 + length(test_index)) matrix of p-values.
+# Returns a G x (1 + length(test_index)) matrix of p-values: the overall test
+# (NA when overall = FALSE) and the component tests in test_index (none when
+# test_index is empty).
 # The gene-independent part (.signal_setup) is computed once, using ncores
 # BLAS threads for its matrix products; the genes are then split over ncores
 # forked workers that share it, each with one BLAS thread (one gene per task,
@@ -181,14 +183,14 @@
 # the genes run one after another.
 .signal_engine <- function(Y, Klist, test_index = 1:3,
                            method = c("davies", "saddlepoint", "liu", "davies_liu", "eigen"),
-                           ncores = 1, progress = FALSE) {
+                           ncores = 1, progress = FALSE, overall = TRUE) {
   method <- match.arg(method)
   if (ncores > 1) {
     blas <- .get_blas_threads()
     on.exit(.set_blas_threads(blas))
     .set_blas_threads(ncores)
   }
-  s <- .signal_setup(Klist, test_index, method)
+  s <- .signal_setup(Klist, test_index, method, overall)
   if (is.null(s)) return(matrix(NA_real_, nrow(Y), 1 + length(test_index)))
   G <- nrow(Y)
   if (ncores <= 1 || G <= 1) return(.signal_genes(Y, s, method))
@@ -233,7 +235,7 @@
 
 # Gene-independent quantities for one kernel list: MINQUE(0) weights, the
 # quadratic-form matrices and, for Liu's approximation, the trace moments.
-.signal_setup <- function(Klist, test_index, method) {
+.signal_setup <- function(Klist, test_index, method, overall = TRUE) {
   m <- length(Klist)
   C <- matrix(0, m, m)
   for (i in seq_len(m)) for (j in i:m) {
@@ -258,7 +260,8 @@
     list(k = k, null_set = null_set, Cnull_inv = Cnull_inv, mo = mo)
   })
   list(Klist = Klist, Cinv = Cinv, Q = Q, B = B, D = D, effects = effects,
-       overall_mo = if (method == "liu") .overall_moments(B, D),
+       overall = overall,
+       overall_mo = if (overall && method == "liu") .overall_moments(B, D),
        components = components)
 }
 
@@ -276,14 +279,16 @@
   U <- .quad_forms(Y, Klist)
   tau <- U %*% t(s$Cinv)
 
-  r <- rowSums(tau[, s$effects, drop = FALSE]) / tau[, m]
-  if (method == "liu") {
-    out[, 1] <- .overall_pvalue_moment(r, s$overall_mo)
-  } else {
-    out[, 1] <- vapply(seq_len(G), function(g) {
-      lambda <- eigen(s$B - r[g] * s$D, symmetric = TRUE, only.values = TRUE)$values
-      overall_tail(0, lambda)
-    }, numeric(1))
+  if (!isFALSE(s$overall)) {
+    r <- rowSums(tau[, s$effects, drop = FALSE]) / tau[, m]
+    if (method == "liu") {
+      out[, 1] <- .overall_pvalue_moment(r, s$overall_mo)
+    } else {
+      out[, 1] <- vapply(seq_len(G), function(g) {
+        lambda <- eigen(s$B - r[g] * s$D, symmetric = TRUE, only.values = TRUE)$values
+        overall_tail(0, lambda)
+      }, numeric(1))
+    }
   }
 
   for (t in seq_along(s$components)) {

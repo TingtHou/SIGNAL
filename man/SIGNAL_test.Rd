@@ -44,7 +44,7 @@ forked processes that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply:
 cannot fork, so there the computation runs on one core. How the cores are
 used is set by \code{parallel}. With a multithreaded BLAS (e.g. OpenBLAS,
 MKL), each kernel's set-up uses \code{ncores} BLAS threads and the workers one
-BLAS thread each (\link{RhpcBLASctl}); the previous setting is restored
+BLAS thread each (package RhpcBLASctl); the previous setting is restored
 afterwards.}
 
 \item{parallel}{How the cores are used:
@@ -93,4 +93,9 @@ cell-type and spatial kernels. All three effect kernels are shifted to zero
 grand mean and an identity kernel models the residual. Variance components
 are estimated by MINQUE(0). Tail probabilities use Liu's moment-matching
 approximation or Davies' algorithm (see \code{method}).
+}
+\seealso{
+\code{\link[=SIGNAL_overall]{SIGNAL_overall()}} and \code{\link[=SIGNAL_component]{SIGNAL_component()}} to run the two steps
+separately, e.g. the component tests only for the genes detected by the
+overall test.
 }

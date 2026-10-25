@@ -101,40 +101,54 @@ names(obj@spatial_kernels)
 To use other spatial kernels, pass a list of n x n matrices:
 `SIGNAL_kernel(obj, kernels = my_kernels)`.
 
-## Step 4: test genes
-
 For each gene and each spatial kernel, SIGNAL fits
 
 $$y \sim N\left(0,\ \tau_1 K_{celltype} + \tau_2 K_{spatial} + \tau_3 K_{interaction} + \sigma^2 I\right)$$
 
-and computes four p-values:
+and tests it in two steps: an **overall** test of $\tau_1 = \tau_2 = \tau_3 = 0$
+detects spatially variable genes, and for the detected genes, **component**
+tests of the cell-type ($\tau_1$), spatial ($\tau_2$) and ctSVG ($\tau_3$)
+effects find the source of the variation. P-values are combined across the 11
+kernels with the Cauchy combination test. By default (`method = "davies"`),
+all tail probabilities use Davies' method.
 
-* an **overall** test of $\tau_1 = \tau_2 = \tau_3 = 0$;
-* a **cell-type** test ($\tau_1$), a **spatial** test ($\tau_2$) and a
-  **ctSVG** test ($\tau_3$).
-
-P-values are combined across the 11 kernels with the Cauchy combination test.
-By default (`method = "davies"`), as in the code used for the simulation
-studies, all four tail probabilities use Davies' method. `method = "liu"` uses
-Liu's moment-matching approximation instead, and `method = "davies_liu"` (the
-original real-data analysis code) uses Davies for the overall test and Liu for
-the other three.
-
-The result is a table with one row per gene and the four p-values, not
-adjusted for multiple testing:
+## Step 4: the overall test
 
 ```{r}
-obj <- SIGNAL_test(obj, ncores = 2)
-obj
+obj <- SIGNAL_overall(obj, ncores = 2)
 head(obj@result)
 ```
 
+`p_overall` is filled in for every gene; the component p-values are still
+`NA`. Call a gene spatially variable when its BH-adjusted overall p-value is
+below 0.05:
+
+```{r}
+detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
+length(detected)
+```
+
+## Step 5: the component tests
+
+The component tests are the costly part, so run them only for the detected
+genes:
+
+```{r}
+obj <- SIGNAL_component(obj, genes = detected, ncores = 2)
+head(obj@result[detected, ])
+```
+
+Genes that were not detected keep `NA` for the component tests. The result is
+a table with one row per gene and the four p-values, not adjusted for multiple
+testing. `SIGNAL_test()` runs both steps on all genes in one call.
+
 Compare with the true gene types: the share of genes of each type with
-p < 0.05 in each test.
+p < 0.05 in each test (untested genes count as not significant).
 
 ```{r}
 type <- SIGNAL_example$gene_type[rownames(obj@result)]
-round(apply(obj@result < 0.05, 2, function(x) tapply(x, type, mean)), 2)
+sig <- !is.na(obj@result) & obj@result < 0.05
+round(apply(sig, 2, function(x) tapply(x, type, mean)), 2)
 ```
 
 Null genes are rarely detected. Cell-type genes are detected by the cell-type
@@ -156,14 +170,14 @@ SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 `gene51` is high in the hotspot for every cell type. `gene61` is high in the
 hotspot only for CT1.
 
-## Step 5: find the cell types behind each ctSVG
+## Step 6: find the cell types behind each ctSVG
 
 `SIGNAL_celltype()` tests each ctSVG once per cell type, using an interaction
-kernel built from that cell type alone. Here it tests the genes with a ctSVG
-p-value below 0.05:
+kernel built from that cell type alone. Here it tests the detected genes with
+a ctSVG p-value below 0.05:
 
 ```{r}
-ctsvg <- rownames(obj@result)[obj@result$p_ctSVG < 0.05]
+ctsvg <- detected[obj@result[detected, "p_ctSVG"] < 0.05]
 obj <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2)
 signif(obj@celltype_result, 2)
 ```
@@ -173,7 +187,8 @@ simulated pattern.
 
 ## One-step analysis
 
-`SIGNAL()` runs steps 1-4 in one call:
+`SIGNAL()` runs steps 1–5 in one call, with the overall and component tests
+for all genes:
 
 ```{r, eval = FALSE}
 obj <- SIGNAL(counts, location, celltype)

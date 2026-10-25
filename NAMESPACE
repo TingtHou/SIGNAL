@@ -2,7 +2,9 @@
 
 export(SIGNAL)
 export(SIGNAL_celltype)
+export(SIGNAL_component)
 export(SIGNAL_kernel)
+export(SIGNAL_overall)
 export(SIGNAL_plotGene)
 export(SIGNAL_preprocess)
 export(SIGNAL_test)

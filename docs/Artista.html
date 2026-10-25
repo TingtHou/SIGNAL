@@ -421,21 +421,27 @@ all of them.</p>
 (fewer than 6,000), SIGNAL builds the panel of 11 spatial kernels.</p>
 <pre class="r"><code>obj &lt;- SIGNAL_kernel(obj)</code></pre>
 </div>
-<div id="step-4-test-the-genes" class="section level2">
-<h2>Step 4: test the genes</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 20)
+<div id="step-4-the-overall-test" class="section level2">
+<h2>Step 4: the overall test</h2>
+<pre class="r"><code>obj &lt;- SIGNAL_overall(obj, ncores = 20)
+detected &lt;- rownames(obj@result)[p.adjust(obj@result$p_overall, &quot;BH&quot;) &lt; 0.05]</code></pre>
+</div>
+<div id="step-5-the-component-tests" class="section level2">
+<h2>Step 5: the component tests</h2>
+<p>The cell-type, spatial and ctSVG tests run only for the detected
+genes.</p>
+<pre class="r"><code>obj &lt;- SIGNAL_component(obj, genes = detected, ncores = 20)
 write.csv(obj@result, &quot;artista_signal_pvalues.csv&quot;)</code></pre>
 </div>
-<div id="step-5-find-the-cell-types-behind-each-ctsvg"
+<div id="step-6-find-the-cell-types-behind-each-ctsvg"
 class="section level2">
-<h2>Step 5: find the cell types behind each ctSVG</h2>
-<pre class="r"><code>res   &lt;- obj@result
-ctsvg &lt;- rownames(res)[p.adjust(res$p_overall, &quot;BH&quot;) &lt; 0.05 &amp; res$p_ctSVG &lt; 0.05]
+<h2>Step 6: find the cell types behind each ctSVG</h2>
+<pre class="r"><code>ctsvg &lt;- detected[obj@result[detected, &quot;p_ctSVG&quot;] &lt; 0.05]
 obj   &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 20)
 obj@celltype_result</code></pre>
 </div>
-<div id="step-6-visualise-a-gene" class="section level2">
-<h2>Step 6: visualise a gene</h2>
+<div id="step-7-visualise-a-gene" class="section level2">
+<h2>Step 7: visualise a gene</h2>
 <pre class="r"><code>SIGNAL_plotGene(obj, &quot;SDC2&quot;, by_celltype = TRUE, point_size = 0.5)</code></pre>
 <p><img src="figures/artista_SDC2.png" alt="" width="100%" /></p>
 </div>

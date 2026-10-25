@@ -51,23 +51,31 @@ than 6,000), SIGNAL builds the panel of 11 spatial kernels.
 obj <- SIGNAL_kernel(obj)
 ```
 
-## Step 4: test the genes
+## Step 4: the overall test
 
 ```{r}
-obj <- SIGNAL_test(obj, ncores = 20)
+obj <- SIGNAL_overall(obj, ncores = 20)
+detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
+```
+
+## Step 5: the component tests
+
+The cell-type, spatial and ctSVG tests run only for the detected genes.
+
+```{r}
+obj <- SIGNAL_component(obj, genes = detected, ncores = 20)
 write.csv(obj@result, "artista_signal_pvalues.csv")
 ```
 
-## Step 5: find the cell types behind each ctSVG
+## Step 6: find the cell types behind each ctSVG
 
 ```{r}
-res   <- obj@result
-ctsvg <- rownames(res)[p.adjust(res$p_overall, "BH") < 0.05 & res$p_ctSVG < 0.05]
+ctsvg <- detected[obj@result[detected, "p_ctSVG"] < 0.05]
 obj   <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 20)
 obj@celltype_result
 ```
 
-## Step 6: visualise a gene
+## Step 7: visualise a gene
 
 ```{r}
 SIGNAL_plotGene(obj, "SDC2", by_celltype = TRUE, point_size = 0.5)

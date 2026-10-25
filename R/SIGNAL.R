@@ -265,7 +265,7 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   cannot fork, so there the computation runs on one core. How the cores are
 #'   used is set by `parallel`. With a multithreaded BLAS (e.g. OpenBLAS,
 #'   MKL), each kernel's set-up uses `ncores` BLAS threads and the workers one
-#'   BLAS thread each ([RhpcBLASctl]); the previous setting is restored
+#'   BLAS thread each (package RhpcBLASctl); the previous setting is restored
 #'   afterwards.
 #' @param parallel How the cores are used:
 #'   * `"auto"` (default): whichever of the two below is expected to be
@@ -287,36 +287,122 @@ SIGNAL_kernel <- function(object, kernels = NULL, approximation = "auto", max_ce
 #'   `result` is a data frame with one row per gene (row names) and the
 #'   p-values `p_overall`, `p_celltype`, `p_spatial` and `p_ctSVG`, combined
 #'   over spatial kernels and not adjusted for multiple testing.
+#' @seealso [SIGNAL_overall()] and [SIGNAL_component()] to run the two steps
+#'   separately, e.g. the component tests only for the genes detected by the
+#'   overall test.
 #' @export
 SIGNAL_test <- function(object,
                         method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
                         parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
   method <- match.arg(method)
+  .run_tests(object, genes = NULL, overall = TRUE, components = TRUE, method = method,
+             ncores = ncores, parallel = parallel, verbose = verbose)
+}
+
+#' Step 1: the overall test
+#'
+#' Tests every gene for any cell-type or spatial variation, the overall test
+#' of \eqn{\tau_1 = \tau_2 = \tau_3 = 0} in the model of [SIGNAL_test()].
+#' Genes detected here can then be classified with [SIGNAL_component()].
+#'
+#' @inheritParams SIGNAL_test
+#' @return The object with `p_overall` in `result` (one row per gene) and
+#'   `pvalues_by_kernel$overall` filled in; component p-values already in
+#'   `result` are kept.
+#' @examples
+#' data(SIGNAL_example)
+#' obj <- createSIGNALobject(SIGNAL_example$counts, SIGNAL_example$location,
+#'                           SIGNAL_example$celltype)
+#' obj <- SIGNAL_preprocess(obj, verbose = FALSE)
+#' obj <- SIGNAL_kernel(obj, verbose = FALSE)
+#' obj <- SIGNAL_overall(obj, ncores = 2, verbose = FALSE)
+#' detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
+#' obj <- SIGNAL_component(obj, genes = detected, ncores = 2, verbose = FALSE)
+#' head(obj@result)
+#' @export
+SIGNAL_overall <- function(object,
+                           method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
+                           parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
+  method <- match.arg(method)
+  .run_tests(object, genes = NULL, overall = TRUE, components = FALSE, method = method,
+             ncores = ncores, parallel = parallel, verbose = verbose)
+}
+
+#' Step 2: the component tests
+#'
+#' Tests each effect of the model of [SIGNAL_test()] on its own, for the genes
+#' in `genes`: the cell-type test (\eqn{\tau_1}), the spatial test
+#' (\eqn{\tau_2}) and the ctSVG test (\eqn{\tau_3}). Usually run on the genes
+#' detected by the overall test ([SIGNAL_overall()]), which saves most of the
+#' run time when only some genes are detected.
+#'
+#' @inheritParams SIGNAL_test
+#' @param genes Genes to test. Defaults to all genes.
+#' @return The object with `p_celltype`, `p_spatial` and `p_ctSVG` in
+#'   `result` filled in for `genes` (`NA` for other genes) and the matching
+#'   `pvalues_by_kernel` entries; `p_overall` is kept.
+#' @export
+SIGNAL_component <- function(object, genes = NULL,
+                             method = c("davies", "saddlepoint", "liu", "davies_liu"), ncores = NULL,
+                             parallel = c("auto", "genes", "kernels"), verbose = TRUE) {
+  method <- match.arg(method)
+  .run_tests(object, genes = genes, overall = FALSE, components = TRUE, method = method,
+             ncores = ncores, parallel = parallel, verbose = verbose)
+}
+
+# Run the overall and/or component tests for `genes` (default all) over all
+# spatial kernels, and write the Cauchy-combined p-values into the object.
+# Columns of tests not run, and rows of genes not tested, keep their values
+# (NA if never run).
+.run_tests <- function(object, genes, overall, components, method, ncores, parallel, verbose) {
   .check_ready(object)
   Y <- object@gene_expression
-  kernels <- object@spatial_kernels
-  K_celltype <- object@celltype_kernel
-  if (is.null(ncores)) ncores <- .default_cores()
-  cores <- .split_cores(ncores, parallel, length(object@spatial_kernels), nrow(Y), method, ncol(Y))
+  all_genes <- rownames(Y)
+  if (is.null(genes)) genes <- all_genes
+  missing_genes <- setdiff(genes, all_genes)
+  if (length(missing_genes) > 0) {
+    stop("Genes not found after preprocessing: ", paste(utils::head(missing_genes), collapse = ", "))
+  }
+  tests <- c("overall", "celltype", "spatial", "ctSVG")
+  cols <- c("p_overall", "p_celltype", "p_spatial", "p_ctSVG")
 
-  job <- .kernel_job(Y, K_celltype, 1:3, method, ncores = cores$genes, progress = verbose)
+  # Start from the existing results, or empty ones
+  res <- object@result
+  if (nrow(res) == 0 || !identical(rownames(res), all_genes)) {
+    res <- as.data.frame(matrix(NA_real_, length(all_genes), 4, dimnames = list(all_genes, cols)))
+  }
+  kernels <- object@spatial_kernels
+  pk <- object@pvalues_by_kernel
+  if (!all(tests %in% names(pk)) || !identical(rownames(pk$overall), all_genes)) {
+    pk <- stats::setNames(lapply(tests, function(t) {
+      matrix(NA_real_, length(all_genes), length(kernels), dimnames = list(all_genes, names(kernels)))
+    }), tests)
+  }
+  if (length(genes) == 0) {
+    if (verbose) message("No genes to test.")
+    return(object)
+  }
+
+  if (is.null(ncores)) ncores <- .default_cores()
+  test_index <- if (components) 1:3 else integer(0)
+  cores <- .split_cores(ncores, parallel, length(kernels), length(genes), method, ncol(Y))
+  if (verbose) {
+    message(if (overall && components) "Overall and component tests" else if (overall) "Overall test"
+            else "Component tests", " for ", length(genes), " genes")
+  }
+  job <- .kernel_job(Y[genes, , drop = FALSE], object@celltype_kernel, test_index, method,
+                     ncores = cores$genes, progress = verbose, overall = overall)
   per_kernel <- .map_kernels(kernels, cores$kernels, verbose, job)
 
-  tests <- c("overall", "celltype", "spatial", "ctSVG")
-  pvalues_by_kernel <- lapply(seq_along(tests), function(t) {
-    P <- vapply(per_kernel, function(x) x[, t], numeric(nrow(Y)))
-    matrix(P, nrow = nrow(Y), dimnames = list(rownames(Y), names(kernels)))
-  })
-  names(pvalues_by_kernel) <- tests
-
-  object@result <- data.frame(
-    p_overall = combine_pvalues(pvalues_by_kernel$overall),
-    p_celltype = combine_pvalues(pvalues_by_kernel$celltype),
-    p_spatial = combine_pvalues(pvalues_by_kernel$spatial),
-    p_ctSVG = combine_pvalues(pvalues_by_kernel$ctSVG),
-    row.names = rownames(Y)
-  )
-  object@pvalues_by_kernel <- pvalues_by_kernel
+  run <- c(overall = overall, celltype = components, spatial = components, ctSVG = components)
+  for (t in which(run)) {
+    P <- vapply(per_kernel, function(x) x[, t], numeric(length(genes)))
+    P <- matrix(P, nrow = length(genes))
+    pk[[tests[t]]][genes, ] <- P
+    res[genes, cols[t]] <- combine_pvalues(P)
+  }
+  object@result <- res
+  object@pvalues_by_kernel <- pk
   object@params$test <- list(method = method)
   object
 }
@@ -359,7 +445,7 @@ SIGNAL_celltype <- function(object, genes = NULL, method = c("davies", "saddlepo
       if (verbose) message("Cell type ", colnames(X)[c])
       K_c <- tcrossprod(X[, c]) / ncol(X)
       job <- .kernel_job(Yg, object@celltype_kernel, 3, method, ncores = cores$genes,
-                         K_interaction = K_c, column = 2)
+                         K_interaction = K_c, column = 2, overall = FALSE)
       per_kernel <- .map_kernels(object@spatial_kernels, cores$kernels, FALSE, job)
       out[, c] <- combine_pvalues(do.call(cbind, per_kernel))
     }
@@ -466,12 +552,12 @@ SIGNAL <- function(counts, location, celltype, kernels = NULL,
 
 # P-values for one spatial kernel.
 .kernel_job <- function(Y, K_celltype, test_index, method, ncores = 1, progress = FALSE,
-                        K_interaction = NULL, column = NULL) {
+                        K_interaction = NULL, column = NULL, overall = TRUE) {
   force(Y); force(K_celltype)
   function(Ks) {
     K_int <- if (is.null(K_interaction)) K_celltype else K_interaction
     P <- .signal_engine(Y, .signal_kernels(K_celltype, Ks, K_int), test_index, method,
-                        ncores = ncores, progress = progress)
+                        ncores = ncores, progress = progress, overall = overall)
     if (is.null(column)) P else P[, column]
   }
 }

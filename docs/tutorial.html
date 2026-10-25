@@ -458,47 +458,55 @@ names(obj@spatial_kernels)
 #&gt;  [6] &quot;matern_3&quot;   &quot;gaussian_4&quot; &quot;matern_4&quot;   &quot;gaussian_5&quot; &quot;matern_5&quot;  
 #&gt; [11] &quot;spline&quot;</code></pre>
 </div>
-<div id="step-4-test-the-genes" class="section level2">
-<h2>Step 4: test the genes</h2>
-<p><code>SIGNAL_test()</code> runs the overall test and the three
-component tests for every gene and kernel, and combines the p-values
+<div id="step-4-the-overall-test" class="section level2">
+<h2>Step 4: the overall test</h2>
+<p>The overall test asks whether a gene varies with cell type, space or
+both. It runs for every gene and kernel, and the p-values are combined
 over the 11 kernels with the Cauchy combination test.</p>
-<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 2, verbose = FALSE)
+<pre class="r"><code>obj &lt;- SIGNAL_overall(obj, ncores = 2, verbose = FALSE)
 head(obj@result)
-#&gt;        p_overall p_celltype  p_spatial    p_ctSVG
-#&gt; gene1 0.96179774  0.5825084 0.46896037 0.97176815
-#&gt; gene2 0.04019524  0.1557116 0.32989671 0.06055126
-#&gt; gene3 0.39417392  0.3583021 0.42520224 0.39328810
-#&gt; gene4 0.44451921  0.1451272 0.44276388 0.52757702
-#&gt; gene5 0.56059044  0.4548540 0.19757713 0.68733989
-#&gt; gene6 0.15656836  0.2652670 0.08704981 0.28847620</code></pre>
-<p>The result is a table with one row per gene and the four p-values,
-not adjusted for multiple testing. Save it with
-<code>write.csv(obj@result, "signal.csv")</code>.</p>
-<p>The share of genes of each true type with p &lt; 0.05:</p>
-<pre class="r"><code>type &lt;- SIGNAL_example$gene_type[rownames(obj@result)]
-round(apply(obj@result &lt; 0.05, 2, function(x) tapply(x, type, mean)), 2)
-#&gt;          p_overall p_celltype p_spatial p_ctSVG
-#&gt; celltype      1.00       1.00      0.00       0
-#&gt; ctSVG         1.00       1.00      0.50       1
-#&gt; null          0.03       0.03      0.07       0
-#&gt; spatial       1.00       0.10      1.00       0</code></pre>
-<p>Null genes are rarely detected. The cell-type genes are found by the
-cell-type test, the spatial genes by the spatial test and the ctSVGs by
-the ctSVG test. Most ctSVGs are also found by the cell-type test: higher
-expression in the hotspot for <code>CT1</code> only also raises
-<code>CT1</code>’s average expression.</p>
-<div id="classifying-genes" class="section level3">
-<h3>Classifying genes</h3>
-<p>A common rule is to call a gene spatially variable when its
-BH-adjusted overall p-value is below 0.05, and then label it with every
-effect whose component p-value is below 0.05:</p>
+#&gt;        p_overall p_celltype p_spatial p_ctSVG
+#&gt; gene1 0.96179774         NA        NA      NA
+#&gt; gene2 0.04019524         NA        NA      NA
+#&gt; gene3 0.39417392         NA        NA      NA
+#&gt; gene4 0.44451921         NA        NA      NA
+#&gt; gene5 0.56059044         NA        NA      NA
+#&gt; gene6 0.15656836         NA        NA      NA</code></pre>
+<p><code>p_overall</code> is filled in for every gene; the component
+p-values are still <code>NA</code>. Call a gene spatially variable when
+its BH-adjusted overall p-value is below 0.05:</p>
+<pre class="r"><code>detected &lt;- rownames(obj@result)[p.adjust(obj@result$p_overall, &quot;BH&quot;) &lt; 0.05]
+length(detected)
+#&gt; [1] 30</code></pre>
+</div>
+<div id="step-5-the-component-tests" class="section level2">
+<h2>Step 5: the component tests</h2>
+<p>The cell-type, spatial and ctSVG tests find the source of the
+variation. They are the costly part, so run them only for the detected
+genes:</p>
+<pre class="r"><code>obj &lt;- SIGNAL_component(obj, genes = detected, ncores = 2, verbose = FALSE)
+head(obj@result[detected, ])
+#&gt;           p_overall   p_celltype  p_spatial   p_ctSVG
+#&gt; gene41 1.110223e-16 1.110223e-16 0.46426229 0.4453915
+#&gt; gene42 1.110223e-16 1.110223e-16 0.91175721 0.1200590
+#&gt; gene43 1.110223e-16 1.110223e-16 0.13858701 0.8028213
+#&gt; gene44 1.110223e-16 1.110223e-16 0.09622402 0.8478342
+#&gt; gene45 1.110223e-16 1.110223e-16 0.71558763 0.4785695
+#&gt; gene46 1.110223e-16 1.110223e-16 0.78241878 0.9205988</code></pre>
+<p>Genes that were not detected keep <code>NA</code>. The result is a
+table with one row per gene and the four p-values, not adjusted for
+multiple testing; save it with
+<code>write.csv(obj@result, "signal.csv")</code>.
+<code>SIGNAL_test()</code> runs steps 4 and 5 for all genes in one
+call.</p>
+<p>Label each detected gene with every effect whose p-value is below
+0.05, and compare with the true gene types:</p>
 <pre class="r"><code>res &lt;- obj@result
-res$padj_overall &lt;- p.adjust(res$p_overall, &quot;BH&quot;)
-sig &lt;- res$padj_overall &lt; 0.05
-category &lt;- ifelse(!sig, &quot;Not significant&quot;,
-  apply(res[, c(&quot;p_celltype&quot;, &quot;p_spatial&quot;, &quot;p_ctSVG&quot;)] &lt; 0.05, 1, function(f)
-    paste(c(&quot;CellType&quot;, &quot;Spatial&quot;, &quot;ctSVG&quot;)[f], collapse = &quot;+&quot;)))
+category &lt;- rep(&quot;Not significant&quot;, nrow(res))
+names(category) &lt;- rownames(res)
+category[detected] &lt;- apply(res[detected, c(&quot;p_celltype&quot;, &quot;p_spatial&quot;, &quot;p_ctSVG&quot;)] &lt; 0.05, 1,
+  function(f) paste(c(&quot;CellType&quot;, &quot;Spatial&quot;, &quot;ctSVG&quot;)[f], collapse = &quot;+&quot;))
+type &lt;- SIGNAL_example$gene_type[rownames(res)]
 table(truth = type, SIGNAL = category)
 #&gt;           SIGNAL
 #&gt; truth      CellType CellType+ctSVG CellType+Spatial CellType+Spatial+ctSVG
@@ -512,23 +520,28 @@ table(truth = type, SIGNAL = category)
 #&gt;   ctSVG                  0       0
 #&gt;   null                  40       0
 #&gt;   spatial                0       9</code></pre>
+<p>Null genes are not detected. The cell-type genes are found by the
+cell-type test, the spatial genes by the spatial test and the ctSVGs by
+the ctSVG test. Most ctSVGs are also found by the cell-type test: higher
+expression in the hotspot for <code>CT1</code> only also raises
+<code>CT1</code>’s average expression.</p>
 </div>
-</div>
-<div id="step-5-visualise-genes" class="section level2">
-<h2>Step 5: visualise genes</h2>
+<div id="step-6-visualise-genes" class="section level2">
+<h2>Step 6: visualise genes</h2>
 <pre class="r"><code>SIGNAL_plotGene(obj, &quot;gene51&quot;)</code></pre>
-<p><img src="tutorial_files/figure-html/unnamed-chunk-8-1.png" alt="" width="576" /></p>
+<p><img src="tutorial_files/figure-html/unnamed-chunk-9-1.png" alt="" width="576" /></p>
 <pre class="r"><code>SIGNAL_plotGene(obj, &quot;gene61&quot;, by_celltype = TRUE)</code></pre>
-<p><img src="tutorial_files/figure-html/unnamed-chunk-9-1.png" alt="" width="672" /></p>
+<p><img src="tutorial_files/figure-html/unnamed-chunk-10-1.png" alt="" width="672" /></p>
 <p><code>gene51</code> (a spatial gene) is high in the hotspot for every
 cell type; <code>gene61</code> (a ctSVG) only for <code>CT1</code>.</p>
 </div>
-<div id="step-6-find-the-cell-types-behind-each-ctsvg"
+<div id="step-7-find-the-cell-types-behind-each-ctsvg"
 class="section level2">
-<h2>Step 6: find the cell types behind each ctSVG</h2>
+<h2>Step 7: find the cell types behind each ctSVG</h2>
 <p><code>SIGNAL_celltype()</code> tests each gene once per cell type,
-using an interaction kernel built from that cell type alone.</p>
-<pre class="r"><code>ctsvg &lt;- rownames(obj@result)[obj@result$p_ctSVG &lt; 0.05]
+using an interaction kernel built from that cell type alone. Here it
+tests the detected genes with a ctSVG p-value below 0.05:</p>
+<pre class="r"><code>ctsvg &lt;- detected[res[detected, &quot;p_ctSVG&quot;] &lt; 0.05]
 obj &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2, verbose = FALSE)
 signif(head(obj@celltype_result), 2)
 #&gt;            CT1  CT2  CT3  CT4
@@ -543,8 +556,9 @@ that carries the simulated pattern.</p>
 </div>
 <div id="one-step-analysis" class="section level2">
 <h2>One-step analysis</h2>
-<p><code>SIGNAL()</code> runs steps 1–4 in one call:</p>
-<pre class="r"><code>obj &lt;- SIGNAL(counts, location, celltype, seed = 1)</code></pre>
+<p><code>SIGNAL()</code> runs steps 1–5 in one call, with the overall
+and component tests for all genes:</p>
+<pre class="r"><code>obj &lt;- SIGNAL(counts, location, celltype)</code></pre>
 </div>
 <div id="options" class="section level2">
 <h2>Options</h2>
@@ -638,11 +652,11 @@ cells</td>
 #&gt; [25] cachem_1.1.0        xfun_0.56           sass_0.4.10        
 #&gt; [28] S7_0.2.1            otel_0.2.0          cli_3.6.5          
 #&gt; [31] withr_3.0.2         magrittr_2.0.4      mgcv_1.9-3         
-#&gt; [34] digest_0.6.39       grid_4.5.2          lifecycle_1.0.5    
-#&gt; [37] CompQuadForm_1.4.4  nlme_3.1-168        vctrs_0.7.1        
-#&gt; [40] evaluate_1.0.5      glue_1.8.0          farver_2.1.2       
-#&gt; [43] rmarkdown_2.30      tools_4.5.2         pkgconfig_2.0.3    
-#&gt; [46] htmltools_0.5.9</code></pre>
+#&gt; [34] digest_0.6.39       grid_4.5.2          fontawesome_0.5.3  
+#&gt; [37] lifecycle_1.0.5     CompQuadForm_1.4.4  nlme_3.1-168       
+#&gt; [40] vctrs_0.7.1         evaluate_1.0.5      glue_1.8.0         
+#&gt; [43] farver_2.1.2        rmarkdown_2.30      tools_4.5.2        
+#&gt; [46] pkgconfig_2.0.3     htmltools_0.5.9</code></pre>
 </div>
 
 <hr>

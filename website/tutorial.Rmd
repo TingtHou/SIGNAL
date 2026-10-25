@@ -64,49 +64,60 @@ obj <- SIGNAL_kernel(obj)
 names(obj@spatial_kernels)
 ```
 
-## Step 4: test the genes
+## Step 4: the overall test
 
-`SIGNAL_test()` runs the overall test and the three component tests for every
-gene and kernel, and combines the p-values over the 11 kernels with the Cauchy
-combination test.
+The overall test asks whether a gene varies with cell type, space or both. It
+runs for every gene and kernel, and the p-values are combined over the 11
+kernels with the Cauchy combination test.
 
 ```{r}
-obj <- SIGNAL_test(obj, ncores = 2, verbose = FALSE)
+obj <- SIGNAL_overall(obj, ncores = 2, verbose = FALSE)
 head(obj@result)
 ```
 
-The result is a table with one row per gene and the four p-values, not
-adjusted for multiple testing. Save it with `write.csv(obj@result, "signal.csv")`.
-
-The share of genes of each true type with p < 0.05:
+`p_overall` is filled in for every gene; the component p-values are still
+`NA`. Call a gene spatially variable when its BH-adjusted overall p-value is
+below 0.05:
 
 ```{r}
-type <- SIGNAL_example$gene_type[rownames(obj@result)]
-round(apply(obj@result < 0.05, 2, function(x) tapply(x, type, mean)), 2)
+detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
+length(detected)
 ```
 
-Null genes are rarely detected. The cell-type genes are found by the cell-type
+## Step 5: the component tests
+
+The cell-type, spatial and ctSVG tests find the source of the variation. They
+are the costly part, so run them only for the detected genes:
+
+```{r}
+obj <- SIGNAL_component(obj, genes = detected, ncores = 2, verbose = FALSE)
+head(obj@result[detected, ])
+```
+
+Genes that were not detected keep `NA`. The result is a table with one row per
+gene and the four p-values, not adjusted for multiple testing; save it with
+`write.csv(obj@result, "signal.csv")`. `SIGNAL_test()` runs steps 4 and 5 for
+all genes in one call.
+
+Label each detected gene with every effect whose p-value is below 0.05, and
+compare with the true gene types:
+
+```{r}
+res <- obj@result
+category <- rep("Not significant", nrow(res))
+names(category) <- rownames(res)
+category[detected] <- apply(res[detected, c("p_celltype", "p_spatial", "p_ctSVG")] < 0.05, 1,
+  function(f) paste(c("CellType", "Spatial", "ctSVG")[f], collapse = "+"))
+type <- SIGNAL_example$gene_type[rownames(res)]
+table(truth = type, SIGNAL = category)
+```
+
+Null genes are not detected. The cell-type genes are found by the cell-type
 test, the spatial genes by the spatial test and the ctSVGs by the ctSVG test.
 Most ctSVGs are also found by the cell-type test: higher expression in the
 hotspot for `CT1` only also raises `CT1`'s average expression.
 
-### Classifying genes
-
-A common rule is to call a gene spatially variable when its BH-adjusted
-overall p-value is below 0.05, and then label it with every effect whose
-component p-value is below 0.05:
-
-```{r}
-res <- obj@result
-res$padj_overall <- p.adjust(res$p_overall, "BH")
-sig <- res$padj_overall < 0.05
-category <- ifelse(!sig, "Not significant",
-  apply(res[, c("p_celltype", "p_spatial", "p_ctSVG")] < 0.05, 1, function(f)
-    paste(c("CellType", "Spatial", "ctSVG")[f], collapse = "+")))
-table(truth = type, SIGNAL = category)
-```
-
-## Step 5: visualise genes
+## Step 6: visualise genes
 
 ```{r, fig.height = 3}
 SIGNAL_plotGene(obj, "gene51")
@@ -119,13 +130,14 @@ SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE)
 `gene51` (a spatial gene) is high in the hotspot for every cell type;
 `gene61` (a ctSVG) only for `CT1`.
 
-## Step 6: find the cell types behind each ctSVG
+## Step 7: find the cell types behind each ctSVG
 
 `SIGNAL_celltype()` tests each gene once per cell type, using an interaction
-kernel built from that cell type alone.
+kernel built from that cell type alone. Here it tests the detected genes with
+a ctSVG p-value below 0.05:
 
 ```{r}
-ctsvg <- rownames(obj@result)[obj@result$p_ctSVG < 0.05]
+ctsvg <- detected[res[detected, "p_ctSVG"] < 0.05]
 obj <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 2, verbose = FALSE)
 signif(head(obj@celltype_result), 2)
 ```
@@ -135,10 +147,11 @@ simulated pattern.
 
 ## One-step analysis
 
-`SIGNAL()` runs steps 1–4 in one call:
+`SIGNAL()` runs steps 1–5 in one call, with the overall and component tests
+for all genes:
 
 ```{r, eval = FALSE}
-obj <- SIGNAL(counts, location, celltype, seed = 1)
+obj <- SIGNAL(counts, location, celltype)
 ```
 
 ## Options

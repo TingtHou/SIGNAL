@@ -429,21 +429,27 @@ obj@params$kernel$bandwidth</code></pre>
 <code>approximation = TRUE</code> (5,520 cells is below the 6,000-cell
 threshold).</p>
 </div>
-<div id="step-4-test-the-genes" class="section level2">
-<h2>Step 4: test the genes</h2>
-<pre class="r"><code>obj &lt;- SIGNAL_test(obj, ncores = 8)
+<div id="step-4-the-overall-test" class="section level2">
+<h2>Step 4: the overall test</h2>
+<pre class="r"><code>obj &lt;- SIGNAL_overall(obj, ncores = 8)
+detected &lt;- rownames(obj@result)[p.adjust(obj@result$p_overall, &quot;BH&quot;) &lt; 0.05]</code></pre>
+</div>
+<div id="step-5-the-component-tests" class="section level2">
+<h2>Step 5: the component tests</h2>
+<p>The cell-type, spatial and ctSVG tests run only for the detected
+genes.</p>
+<pre class="r"><code>obj &lt;- SIGNAL_component(obj, genes = detected, ncores = 8)
 write.csv(obj@result, &quot;mouse_signal_pvalues.csv&quot;)</code></pre>
 </div>
-<div id="step-5-find-the-cell-types-behind-each-ctsvg"
+<div id="step-6-find-the-cell-types-behind-each-ctsvg"
 class="section level2">
-<h2>Step 5: find the cell types behind each ctSVG</h2>
-<pre class="r"><code>res   &lt;- obj@result
-ctsvg &lt;- rownames(res)[p.adjust(res$p_overall, &quot;BH&quot;) &lt; 0.05 &amp; res$p_ctSVG &lt; 0.05]
+<h2>Step 6: find the cell types behind each ctSVG</h2>
+<pre class="r"><code>ctsvg &lt;- detected[obj@result[detected, &quot;p_ctSVG&quot;] &lt; 0.05]
 obj   &lt;- SIGNAL_celltype(obj, genes = ctsvg, ncores = 8)
 obj@celltype_result</code></pre>
 </div>
-<div id="step-6-visualise-a-gene" class="section level2">
-<h2>Step 6: visualise a gene</h2>
+<div id="step-7-visualise-a-gene" class="section level2">
+<h2>Step 7: visualise a gene</h2>
 <pre class="r"><code>SIGNAL_plotGene(obj, &quot;Gda&quot;, by_celltype = TRUE, point_size = 0.4)</code></pre>
 <p><img src="figures/mouse_Gda.png" alt="" width="100%" /></p>
 <p><em>Gda</em> is concentrated in a V-shaped region in inhibitory

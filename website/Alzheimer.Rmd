@@ -61,7 +61,7 @@ obj <- SIGNAL_kernel(obj)
 obj@params$kernel[c("celltype_distance", "approximation", "bandwidth")]
 ```
 
-## Step 4: test the genes
+## Step 4: the overall test
 
 Each n × n matrix takes 0.68 GB at 9,244 cells; the main process holds about
 20 of them and each parallel worker about 7 more. Choose `ncores` so that the
@@ -75,20 +75,29 @@ memory fits:
 | 20 | about 110 GB |
 
 ```{r}
-obj <- SIGNAL_test(obj, ncores = 12)
+obj <- SIGNAL_overall(obj, ncores = 12)
+detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
+```
+
+## Step 5: the component tests
+
+The cell-type, spatial and ctSVG tests run only for the detected genes, with
+the same memory per worker.
+
+```{r}
+obj <- SIGNAL_component(obj, genes = detected, ncores = 12)
 write.csv(obj@result, "hippocampus_signal_pvalues.csv")
 ```
 
-## Step 5: find the cell types behind each ctSVG
+## Step 6: find the cell types behind each ctSVG
 
 ```{r}
-res   <- obj@result
-ctsvg <- rownames(res)[p.adjust(res$p_overall, "BH") < 0.05 & res$p_ctSVG < 0.05]
+ctsvg <- detected[obj@result[detected, "p_ctSVG"] < 0.05]
 obj   <- SIGNAL_celltype(obj, genes = ctsvg, ncores = 12)
 obj@celltype_result
 ```
 
-## Step 6: visualise a gene
+## Step 7: visualise a gene
 
 ```{r}
 SIGNAL_plotGene(obj, "Apoe", point_size = 0.4)

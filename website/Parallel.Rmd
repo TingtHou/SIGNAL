@@ -19,9 +19,15 @@ large data) and about the cube of the number of cells n.
 ## Parallel computing
 
 ```{r}
-obj <- SIGNAL_test(obj, ncores = 20)                     # all genes, 20 workers
-obj <- SIGNAL_test(obj, ncores = 20, parallel = "genes") # the same, explicitly
+obj <- SIGNAL_overall(obj, ncores = 20)                     # all genes, 20 workers
+obj <- SIGNAL_overall(obj, ncores = 20, parallel = "genes") # the same, explicitly
+obj <- SIGNAL_component(obj, genes = detected, ncores = 20)
 ```
+
+The same options apply to `SIGNAL_overall()`, `SIGNAL_component()`,
+`SIGNAL_test()` and `SIGNAL_celltype()`. Running the component tests only for
+the detected genes is the largest saving: they take about three times as long
+as the overall test.
 
 * **`ncores`** defaults to all available cores: the Slurm allocation
   (`SLURM_CPUS_PER_TASK`) on a cluster, otherwise all cores of the machine.

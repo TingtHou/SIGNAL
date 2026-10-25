@@ -92,3 +92,26 @@ test_that("SIGNAL_plotGene returns a ggplot", {
                             SIGNAL_example$celltype)
   expect_s3_class(SIGNAL_plotGene(obj, "gene61", by_celltype = TRUE), "ggplot")
 })
+
+test_that("overall and component steps give the same p-values as SIGNAL_test", {
+  sim <- simulate_signal_data(n_cells = 80, n_genes = c(null = 3, spatial = 3, ctSVG = 3), seed = 7)
+  obj <- createSIGNALobject(sim$counts, sim$location, sim$celltype)
+  obj <- SIGNAL_preprocess(obj, min_cells = 0, verbose = FALSE)
+  obj <- SIGNAL_kernel(obj, kernels = build_spatial_kernels(sim$location)[1:2], verbose = FALSE)
+  full <- SIGNAL_test(obj, ncores = 1, verbose = FALSE)
+
+  step1 <- SIGNAL_overall(obj, ncores = 1, verbose = FALSE)
+  expect_equal(step1@result$p_overall, full@result$p_overall)
+  expect_true(all(is.na(as.matrix(step1@result[, c("p_celltype", "p_spatial", "p_ctSVG")]))))
+
+  genes <- rownames(obj@gene_expression)[c(2, 5, 8)]
+  step2 <- SIGNAL_component(step1, genes = genes, ncores = 1, verbose = FALSE)
+  expect_equal(step2@result$p_overall, full@result$p_overall)
+  expect_equal(step2@result[genes, ], full@result[genes, ])
+  other <- setdiff(rownames(obj@gene_expression), genes)
+  expect_true(all(is.na(as.matrix(step2@result[other, c("p_celltype", "p_spatial", "p_ctSVG")]))))
+  expect_equal(step2@pvalues_by_kernel$ctSVG[genes, ], full@pvalues_by_kernel$ctSVG[genes, ])
+
+  both <- SIGNAL_component(SIGNAL_overall(obj, ncores = 1, verbose = FALSE), ncores = 1, verbose = FALSE)
+  expect_equal(both@result, full@result)
+})
