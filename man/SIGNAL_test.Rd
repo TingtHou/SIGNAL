@@ -46,12 +46,11 @@ afterwards:
 \itemize{
 \item each kernel's set-up runs on \code{ncores} BLAS threads;
 \item the genes are split over \verb{min(ncores, number of genes)} forked workers
-that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}), one BLAS thread each,
-limited to as many workers as fit in the available memory (the Slurm
-job's limit when set; each worker needs about 7 n x n matrices);
-\item with a single gene, too little memory for two workers, or on Windows
-(which cannot fork), the genes are tested one at a time on \code{ncores}
-BLAS threads.
+that share memory (\code{\link[pbmcapply:pbmclapply]{pbmcapply::pbmclapply()}}), one BLAS thread each;
+each worker needs about 7 n x n matrices (about 5 GB at n = 9,000), so
+lower \code{ncores} if memory is short;
+\item a single gene, or Windows (which cannot fork), runs on \code{ncores} BLAS
+threads.
 }
 
 So \code{OPENBLAS_NUM_THREADS=1} (or \code{OMP_NUM_THREADS=1}) can be kept in the
