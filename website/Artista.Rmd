@@ -109,4 +109,4 @@ sbatch --array=1-100 --cpus-per-task=20 --mem-per-cpu=4G --time=24:00:00 run_art
 ```
 
 With 4,410 cells, each spatial kernel takes about 17 minutes for 160 genes on
-20 cores, so a batch of 160 genes needs about 3 hours and 30 GB of memory.
+20 cores, so a batch of 160 genes needs about 3 hours.

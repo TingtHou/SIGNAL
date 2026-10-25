@@ -453,8 +453,7 @@ obj &lt;- SIGNAL(data_use$count_use[batch, ], data_use$location_coord, data_use$
 saveRDS(obj@result, sprintf(&quot;artista_part_%03d.rds&quot;, part))</code></pre>
 <pre class="bash"><code>sbatch --array=1-100 --cpus-per-task=20 --mem-per-cpu=4G --time=24:00:00 run_artista.sh</code></pre>
 <p>With 4,410 cells, each spatial kernel takes about 17 minutes for 160
-genes on 20 cores, so a batch of 160 genes needs about 3 hours and 30 GB
-of memory.</p>
+genes on 20 cores, so a batch of 160 genes needs about 3 hours.</p>
 </div>
 
 <hr>

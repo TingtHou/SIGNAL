@@ -427,42 +427,13 @@ obj@params$kernel[c(&quot;celltype_distance&quot;, &quot;approximation&quot;, &q
 </div>
 <div id="step-4-the-overall-test" class="section level2">
 <h2>Step 4: the overall test</h2>
-<p>Each n × n matrix takes 0.68 GB at 9,244 cells; the main process
-holds about 20 of them and each parallel worker about 7 more. Choose
-<code>ncores</code> so that the memory fits:</p>
-<table>
-<thead>
-<tr class="header">
-<th>Workers (<code>ncores</code>)</th>
-<th>Memory needed</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>1</td>
-<td>about 17 GB</td>
-</tr>
-<tr class="even">
-<td>8</td>
-<td>about 50 GB</td>
-</tr>
-<tr class="odd">
-<td>12</td>
-<td>about 70 GB</td>
-</tr>
-<tr class="even">
-<td>20</td>
-<td>about 110 GB</td>
-</tr>
-</tbody>
-</table>
 <pre class="r"><code>obj &lt;- SIGNAL_overall(obj, ncores = 12)
 detected &lt;- rownames(obj@result)[p.adjust(obj@result$p_overall, &quot;BH&quot;) &lt; 0.05]</code></pre>
 </div>
 <div id="step-5-the-component-tests" class="section level2">
 <h2>Step 5: the component tests</h2>
 <p>The cell-type, spatial and ctSVG tests run only for the detected
-genes, with the same memory per worker.</p>
+genes.</p>
 <pre class="r"><code>obj &lt;- SIGNAL_component(obj, genes = detected, ncores = 12)
 write.csv(obj@result, &quot;hippocampus_signal_pvalues.csv&quot;)</code></pre>
 </div>

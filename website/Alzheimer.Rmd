@@ -63,17 +63,6 @@ obj@params$kernel[c("celltype_distance", "approximation", "bandwidth")]
 
 ## Step 4: the overall test
 
-Each n × n matrix takes 0.68 GB at 9,244 cells; the main process holds about
-20 of them and each parallel worker about 7 more. Choose `ncores` so that the
-memory fits:
-
-| Workers (`ncores`) | Memory needed |
-|---|---|
-| 1 | about 17 GB |
-| 8 | about 50 GB |
-| 12 | about 70 GB |
-| 20 | about 110 GB |
-
 ```{r}
 obj <- SIGNAL_overall(obj, ncores = 12)
 detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
@@ -81,8 +70,7 @@ detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
 
 ## Step 5: the component tests
 
-The cell-type, spatial and ctSVG tests run only for the detected genes, with
-the same memory per worker.
+The cell-type, spatial and ctSVG tests run only for the detected genes.
 
 ```{r}
 obj <- SIGNAL_component(obj, genes = detected, ncores = 12)
