@@ -63,6 +63,14 @@ obj@params$kernel[c("celltype_distance", "approximation", "bandwidth")]
 
 ## Step 4: the overall test
 
+The overall test asks whether a gene varies with cell type, with space, or
+with both: it tests all three variance components (cell type, spatial and
+ctSVG) together.
+It is run with the single Gaussian spatial kernel.
+`p_overall` is filled in for every gene, and the component p-values stay
+`NA`. Genes whose BH-adjusted overall p-value is below 0.05 are called
+spatially variable (`detected`).
+
 ```{r}
 obj <- SIGNAL_overall(obj, ncores = 12)
 detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
@@ -70,7 +78,12 @@ detected <- rownames(obj@result)[p.adjust(obj@result$p_overall, "BH") < 0.05]
 
 ## Step 5: the component tests
 
-The cell-type, spatial and ctSVG tests run only for the detected genes.
+The component tests find the source of each detected gene's variation: the
+cell-type test, the spatial test and the ctSVG test, each testing one
+variance component with the other two in the model. They run only for the
+detected genes; the other genes keep `NA`. `obj@result` is then a genes x
+p-values table (`p_overall`, `p_celltype`, `p_spatial`, `p_ctSVG`), not
+adjusted for multiple testing.
 
 ```{r}
 obj <- SIGNAL_component(obj, genes = detected, ncores = 12)
